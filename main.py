@@ -10,7 +10,9 @@ import config as cfg
 from ui.theme import Theme, init_fonts
 from ui.transformer_view import TransformerView
 from ui.screens import AppState, IndexScreen, MainScreen
+from ui.update_ui import UpdateUI
 from controllers.hardware import get_hardware_controller
+from update_check import UpdateManager
 
 
 def configure_logging():
@@ -81,6 +83,25 @@ def blit_stretched(screen, surface):
         screen.blit(pygame.transform.smoothscale(surface, size), (0, 0))
 
 
+def scale_pointer_event(event, active_screen, screen_size, main_screen):
+    """Translate pointer coordinates from the window into a reference surface."""
+    if active_screen == "workbench":
+        ref_w, ref_h = cfg.UI_WIDTH, cfg.UI_HEIGHT
+    else:
+        ref_w, ref_h = cfg.UI_INDEX_WIDTH, cfg.UI_INDEX_HEIGHT
+    sx, sy = ref_w / screen_size[0], ref_h / screen_size[1]
+    if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
+        px, py = event.pos
+        local = (px * sx, py * sy)
+        if active_screen == "workbench":
+            main_screen.pointer = local
+        event = pygame.event.Event(event.type, {**event.dict, "pos": local})
+    elif event.type == pygame.MOUSEWHEEL and active_screen == "workbench":
+        px, py = pygame.mouse.get_pos()
+        main_screen.pointer = (px * sx, py * sy)
+    return event, (ref_w, ref_h)
+
+
 def main():
     logger = logging.getLogger(__name__)
     pygame.init()
@@ -94,6 +115,14 @@ def main():
     state = AppState()
     index_screen = IndexScreen(theme)
     main_screen = MainScreen(theme, transformer_view)
+    update_manager = UpdateManager(cfg.UPDATE_MODE, Path(__file__).resolve().parent)
+    update_ui = UpdateUI(
+        theme, cfg.UPDATE_MODE, update_manager.request_check, update_manager.request_update
+    )
+    update_manager.start()
+    startup_notice = update_manager.take_notice()
+    if startup_notice:
+        update_ui.show_notice(startup_notice)
     workbench_surface = pygame.Surface((cfg.UI_WIDTH, cfg.UI_HEIGHT))
     index_surface = pygame.Surface((cfg.UI_INDEX_WIDTH, cfg.UI_INDEX_HEIGHT))
     hardware = get_hardware_controller()
@@ -119,8 +148,20 @@ def main():
         current_time = pygame.time.get_ticks() / 1000.0
         dt = current_time - last_time
         last_time = current_time
+        update_manager.poll_result()
+        update_notice = update_manager.take_notice()
+        if update_notice:
+            update_ui.show_notice(update_notice)
 
         for event in pygame.event.get():
+            update_snapshot = update_manager.snapshot
+            if update_snapshot.state == "updating" or update_ui.confirming:
+                event, surface_size = scale_pointer_event(
+                    event, state.active_screen, screen.get_size(), main_screen
+                )
+                update_ui.handle_event(event, update_snapshot, surface_size, state.active_screen)
+                continue
+
             if power_menu_open:
                 if event.type == pygame.QUIT:
                     running = False
@@ -168,19 +209,12 @@ def main():
             try:
                 on_workbench = state.active_screen == "workbench"
                 active_screen = main_screen if on_workbench else index_screen
-                ref_w, ref_h = ((cfg.UI_WIDTH, cfg.UI_HEIGHT) if on_workbench
-                                else (cfg.UI_INDEX_WIDTH, cfg.UI_INDEX_HEIGHT))
-                display_w, display_h = screen.get_size()
-                sx, sy = ref_w / display_w, ref_h / display_h
-                if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
-                    px, py = event.pos
-                    local = (px * sx, py * sy)
-                    if on_workbench:
-                        main_screen.pointer = local
-                    event = pygame.event.Event(event.type, {**event.dict, "pos": local})
-                elif event.type == pygame.MOUSEWHEEL and on_workbench:
-                    px, py = pygame.mouse.get_pos()
-                    main_screen.pointer = (px * sx, py * sy)
+                event, surface_size = scale_pointer_event(
+                    event, state.active_screen, screen.get_size(), main_screen
+                )
+                if update_ui.handle_event(event, update_manager.snapshot, surface_size,
+                                         state.active_screen):
+                    continue
                 active_screen.handle_event(event, state)
             except Exception:
                 logger.exception("Unhandled error while processing event: %r", event)
@@ -189,6 +223,7 @@ def main():
         pressed = lambda name: physical.get(name, False) and not previous_hardware_inputs.get(name, False)
         mode_down = physical.get("btn_mode", False)
         reset_down = physical.get("btn_reset", False)
+        update_snapshot = update_manager.snapshot
         # MODE and RESET now have dedicated push-button actions; do not use
         # their old long-press chord to open the power menu.
         combo_active = False
@@ -206,7 +241,7 @@ def main():
         else:
             combo_started_at = None
 
-        if power_menu_open:
+        if power_menu_open and update_snapshot.state != "updating":
             if power_menu_wait_for_release:
                 if not mode_down and not reset_down:
                     if power_menu_release_started_at is None:
@@ -239,8 +274,16 @@ def main():
                     else:
                         power_menu_open = False
 
-        elif not combo_active:
-            if state.active_screen == "index":
+        elif not combo_active and update_snapshot.state != "updating":
+            mode_handled = pressed("btn_mode") and update_ui.handle_hardware_button(
+                "btn_mode", update_snapshot, state.active_screen
+            )
+            reset_handled = pressed("btn_reset") and update_ui.handle_hardware_button(
+                "btn_reset", update_snapshot, state.active_screen
+            )
+            if mode_handled or reset_handled:
+                pass
+            elif state.active_screen == "index":
                 # CHANGED (2/2): only the MODE button leaves the index,
                 # not any of the 14 GPIO pins.
                 if pressed("btn_mode"):
@@ -278,20 +321,29 @@ def main():
             combo_triggered = False
         previous_hardware_inputs = physical
         active_screen = main_screen if state.active_screen == "workbench" else index_screen
+        update_manager.poll_result()
+        update_notice = update_manager.take_notice()
+        if update_notice:
+            update_ui.show_notice(update_notice)
+        update_snapshot = update_manager.snapshot
         if active_screen is main_screen:
             active_screen.tick_hold()
             active_screen.draw(workbench_surface, state, dt)
+            update_ui.draw(workbench_surface, update_snapshot, "workbench")
             blit_stretched(screen, workbench_surface)
         else:
             active_screen.draw(index_surface, state, dt)
+            update_ui.draw(index_surface, update_snapshot, "index")
             blit_stretched(screen, index_surface)
-        if power_menu_open:
+        if (power_menu_open and update_snapshot.state != "updating"
+                and not update_ui.confirming):
             draw_power_menu(screen, theme, power_menu_selection, power_menu_confirming)
         pygame.display.flip()
         clock.tick(cfg.FPS)
 
     transformer_view.close()
     hardware.close()
+    update_manager.stop()
     pygame.quit()
     sys.exit()
 

@@ -2,6 +2,10 @@
 
 import os
 
+# Update controls: manual (default), auto, or off.
+_UPDATE_MODE = os.getenv("ITLW_UPDATE_MODE", "manual").strip().lower()
+UPDATE_MODE = _UPDATE_MODE if _UPDATE_MODE in {"manual", "auto", "off"} else "manual"
+
 # Window settings
 WINDOW_WIDTH = 1280
 WINDOW_HEIGHT = 720
