@@ -17,7 +17,138 @@ cd transformer_workbench
 bash scripts/install_raspberry_pi.sh
 ```
 
-The installer enables a user service and configures labwc to start it after the graphical desktop session provides its display. Enable desktop autologin in Raspberry Pi OS if the workbench should appear without a manual login. The launcher starts the workbench full-screen. To run in a resizable window instead, use `TRANSFORMER_FULLSCREEN=0 .venv/bin/python main.py`.
+The installer configures a user service and labwc to start the app after the graphical desktop provides its display. Enable desktop autologin in Raspberry Pi OS if the workbench should appear without a manual login. The launcher starts the workbench full-screen. To run in a resizable window instead, use `TRANSFORMER_FULLSCREEN=0 .venv/bin/python main.py`.
+
+## Updating from the app screen
+
+The small version label shows the app's current commit. In **manual** mode,
+the app checks GitHub when it opens and about once an hour after that. Select
+**Check for updates** (or press `U`) to check sooner. If a new version is
+available, select **Update available - Install now** and confirm. The app will
+show an updating screen, restart itself, and show a short success or rollback
+message when it returns. If it says the previous version was restored, leave
+the app running; the broken commit is skipped until a newer version is pushed.
+If the Pi is offline or GitHub is temporarily unavailable, the check quietly
+remains available to retry later.
+
+With the configured hardware buttons, go to the launch page and press MODE
+when an update is shown to open the confirmation. Press MODE again to install,
+or RESET to choose Later. Touch and mouse use the on-screen controls.
+
+The default policy is `manual`. The other policies are `auto`, where the
+five-minute systemd timer installs updates without asking and the app only
+shows the result, and `off`, where the timer and in-app update controls are
+disabled. No terminal is needed to check or install in manual mode.
+
+## Auto-update on Raspberry Pi
+
+The labwc hook imports the display environment before starting the app's
+user-level systemd service. In **auto** mode, `itlw-update.timer` checks
+`origin/main` every five minutes. The updater fast-forwards only, reinstalls
+each requirements file only if it changed, restarts the app, waits five
+seconds, and checks that the service is active. On failure it restores the
+previous commit and dependencies and records the failed commit outside the
+repository so it will not be retried. A newer commit remains eligible.
+
+The updater and app run as the logged-in desktop user; no sudoers rule or
+root service is needed. Keep desktop autologin enabled for updates after
+reboot. Lingering is disabled because the graphical app needs a desktop
+display; in auto mode a timer run before the desktop is ready is deferred.
+
+The updater and graphical app run as the logged-in desktop user; no sudoers
+rule or root service is needed. Keep desktop autologin enabled if updates
+should continue after reboot. The installer does not enable lingering: without
+a desktop session the Pygame app has no display to use, and a lingering timer
+could attempt a restart while that display is unavailable.
+
+Install on the Pi (assuming user `itlw` and checkout `/home/itlw/itlw`):
+
+```bash
+cd /home/itlw
+git clone --branch main https://github.com/itsmeKnots/itlw.git itlw
+cd /home/itlw/itlw
+cp .env.example .env  # optional; defaults to manual update mode
+chmod 600 .env
+bash scripts/install_raspberry_pi.sh
+```
+
+The installer enables I2C, installs system and Python dependencies, writes
+the user units, and enables or disables the timer based on `ITLW_UPDATE_MODE`.
+Reboot after installation to activate I2C for the ADS1115.
+If the project is already cloned, skip `git clone` and use its checkout path.
+
+Change mode by editing `ITLW_UPDATE_MODE` in `/home/itlw/itlw/.env`, then apply
+the corresponding timer setting and restart the app service. Enable the timer
+for `auto`; disable it for `manual` or `off`:
+
+```bash
+# Run this after setting ITLW_UPDATE_MODE=auto:
+systemctl --user enable --now itlw-update.timer
+systemctl --user restart itlw.service
+```
+
+After setting `ITLW_UPDATE_MODE=manual` or `off`:
+
+```bash
+systemctl --user disable --now itlw-update.timer
+systemctl --user restart itlw.service
+```
+
+In `manual`, the screen provides checks and install confirmation. In `auto`,
+the timer installs updates and the screen only shows its result. In `off`, the
+screen hides update controls and the updater exits without fetching.
+
+Check status and logs:
+
+```bash
+systemctl --user status itlw.service itlw-update.timer
+systemctl --user list-timers itlw-update.timer
+journalctl --user -t itlw-auto-update -n 100 --no-pager
+journalctl --user -u itlw-update.service -n 100 --no-pager
+journalctl --user -u itlw.service -n 100 --no-pager
+```
+
+Pause automatic checks or request an immediate update from the terminal for
+maintenance:
+
+```bash
+systemctl --user stop itlw-update.timer
+bash /home/itlw/itlw/scripts/update_from_github.sh
+systemctl --user start itlw-update.timer
+```
+
+If a commit failed, its hash is stored at
+`~/.local/state/itlw/bad-commit`. The updater skips only that exact hash.
+Inspect or clear the skip record with:
+
+```bash
+cat ~/.local/state/itlw/bad-commit
+rm ~/.local/state/itlw/bad-commit
+```
+
+To roll back manually, first pause updates and stop the app, then reset to the
+chosen commit and restore dependencies before starting the app again:
+
+```bash
+systemctl --user stop itlw-update.timer itlw.service
+cd /home/itlw/itlw
+git log --oneline -n 20
+git reset --hard <commit>
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements-hardware.txt --no-build-isolation
+.venv/bin/python -m pip install adafruit-blinka 'adafruit-circuitpython-ads1x15<3'
+systemctl --user start itlw.service itlw-update.timer
+```
+
+### Recovering the Pi after a history rewrite
+
+If the GitHub history is ever rewritten, the Pi's local branch may no longer
+fast-forward. After confirming the rewritten `origin/main` is the intended
+history, recover the checkout with:
+
+```bash
+cd /home/itlw/itlw && git fetch origin && git reset --hard origin/main
+```
 
 GPIO and ADS controls are attempted on every launch; keyboard and mouse remain available.
 

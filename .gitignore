@@ -6,9 +6,29 @@ __pycache__/
 .venv/
 venv/
 tempCodeRunnerFile.py
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
 
 # Generated Panda3D shader/cache data
 Panda3D-*/
 
 # Runtime error logs
 logs/
+
+# Local configuration and runtime data
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.log.*
+data/
+cache/
+installation_result
