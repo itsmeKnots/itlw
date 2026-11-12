@@ -1,0 +1,262 @@
+itlw@itlw:~$ cditlw
+bash: cditlw: command not found
+itlw@itlw:~$ cd itlw
+itlw@itlw:~/itlw$ ls
+AI_DEVELOPMENT_INSTRUCTIONS.md	helix.py	     __pycache__
+assets				installation_result  README.md
+config.py			install_result.save  requirements-hardware.txt
+controllers			logs		     requirements.txt
+core				main.py		     scripts
+fonts				project_phases.md    ui
+itlw@itlw:~/itlw$ nano installation_result 
+itlw@itlw:~/itlw$ rm install_result.save ~
+rm: cannot remove '/home/itlw': Is a directory
+itlw@itlw:~/itlw$ rm -r install_result.save 
+rm: cannot remove 'install_result.save': No such file or directory
+itlw@itlw:~/itlw$ bash scripts/install_raspberry_pi.sh
+[sudo] password for itlw: 
+Hit:1 http://deb.debian.org/debian trixie InRelease
+Hit:2 http://deb.debian.org/debian trixie-updates InRelease
+Hit:3 http://deb.debian.org/debian-security trixie-security InRelease
+Hit:4 http://archive.raspberrypi.com/debian trixie InRelease    
+95 packages can be upgraded. Run 'apt list --upgradable' to see them.
+python3-full is already the newest version (3.13.5-1).
+python3-venv is already the newest version (3.13.5-1).
+libegl1 is already the newest version (1.7.0-1+b2).
+libgl1 is already the newest version (1.7.0-1+b2).
+libgl1-mesa-dri is already the newest version (26.2.2-1~bpo13+0~rpt1).
+Installing:
+  swig
+
+Suggested packages:
+  swig-doc  swig-examples
+
+Summary:
+  Upgrading: 0, Installing: 1, Removing: 0, Not Upgrading: 95
+  Download size: 1,406 kB
+  Space needed: 6,122 kB / 18.4 GB available
+
+Get:1 http://deb.debian.org/debian trixie/main arm64 swig arm64 4.3.0-1 [1,406 kB]
+Fetched 1,406 kB in 4s (367 kB/s)  
+Selecting previously unselected package swig.
+(Reading database ... 129052 files and directories currently installed.)
+Preparing to unpack .../swig_4.3.0-1_arm64.deb ...
+Unpacking swig (4.3.0-1) ...
+Setting up swig (4.3.0-1) ...
+Processing triggers for man-db (2.13.1-1) ...
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+Requirement already satisfied: pip in ./.venv/lib/python3.13/site-packages (26.2.2)
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+Requirement already satisfied: pygame==2.6.1 in ./.venv/lib/python3.13/site-packages (from -r /home/itlw/itlw/requirements.txt (line 2)) (2.6.1)
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)'))': /simple/gpiozero/
+WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)'))': /simple/gpiozero/
+WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)'))': /simple/gpiozero/
+WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)'))': /simple/gpiozero/
+WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1029)'))': /simple/gpiozero/
+Collecting gpiozero>=2.0 (from -r /home/itlw/itlw/requirements-hardware.txt (line 3))
+  Using cached gpiozero-2.0.1.post3-py3-none-any.whl.metadata (9.9 kB)
+Collecting adafruit-blinka>=8.0 (from -r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_blinka-9.2.0-py3-none-any.whl.metadata (5.9 kB)
+Collecting adafruit-circuitpython-ads1x15>=2.0 (from -r /home/itlw/itlw/requirements-hardware.txt (line 5))
+  Using cached adafruit_circuitpython_ads1x15-3.0.5-py3-none-any.whl.metadata (4.2 kB)
+Collecting colorzero (from gpiozero>=2.0->-r /home/itlw/itlw/requirements-hardware.txt (line 3))
+  Using cached colorzero-2.0-py2.py3-none-any.whl.metadata (4.1 kB)
+Collecting Adafruit-PlatformDetect>=3.89.1 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_platformdetect-3.89.1-py3-none-any.whl.metadata (3.8 kB)
+Collecting Adafruit-PureIO>=1.1.7 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_pureio-1.1.12-py3-none-any.whl.metadata (3.0 kB)
+Collecting binho-host-adapter>=0.1.6 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached binho_host_adapter-0.1.6-py3-none-any.whl.metadata (2.0 kB)
+Collecting pyftdi>=0.40.0 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached pyftdi-0.57.2-py3-none-any.whl.metadata (3.4 kB)
+Collecting adafruit-circuitpython-typing (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_circuitpython_typing-1.13.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting sysv_ipc>=1.1.0 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached sysv_ipc-1.2.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+Collecting rpi_ws281x>=4.0.0 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached rpi_ws281x-5.0.0-cp313-cp313-linux_aarch64.whl
+Collecting lgpio>=0.2.2.0 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached lgpio-0.2.2.0.tar.gz (90 kB)
+  Installing build dependencies ... done
+  Getting requirements to build wheel ... done
+  Preparing metadata (pyproject.toml) ... done
+WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /simple/rpi-gpio/
+Collecting RPi.GPIO (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached rpi_gpio-0.7.1-cp313-cp313-linux_aarch64.whl
+Collecting Adafruit-Blinka-Raspberry-Pi5-Neopixel (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached Adafruit_Blinka_Raspberry_Pi5_Neopixel-1.0.0rc2-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (547 bytes)
+Collecting adafruit-circuitpython-busdevice (from adafruit-circuitpython-ads1x15>=2.0->-r /home/itlw/itlw/requirements-hardware.txt (line 5))
+  Using cached adafruit_circuitpython_busdevice-5.2.17-py3-none-any.whl.metadata (4.1 kB)
+Collecting typing-extensions~=4.0 (from adafruit-circuitpython-ads1x15>=2.0->-r /home/itlw/itlw/requirements-hardware.txt (line 5))
+  Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting pyserial (from binho-host-adapter>=0.1.6->adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached pyserial-3.5-py2.py3-none-any.whl.metadata (1.6 kB)
+Collecting pyusb!=1.2.0,>=1.0.0 (from pyftdi>=0.40.0->adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached pyusb-1.3.1-py3-none-any.whl.metadata (2.6 kB)
+Collecting adafruit-circuitpython-requests (from adafruit-circuitpython-typing->adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_circuitpython_requests-4.1.17-py3-none-any.whl.metadata (3.6 kB)
+Collecting Adafruit-Circuitpython-ConnectionManager (from adafruit-circuitpython-requests->adafruit-circuitpython-typing->adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_circuitpython_connectionmanager-3.1.8-py3-none-any.whl.metadata (4.5 kB)
+Collecting setuptools (from colorzero->gpiozero>=2.0->-r /home/itlw/itlw/requirements-hardware.txt (line 3))
+  Using cached setuptools-84.2.1-py3-none-any.whl.metadata (6.6 kB)
+Using cached gpiozero-2.0.1.post3-py3-none-any.whl (151 kB)
+Using cached adafruit_blinka-9.2.0-py3-none-any.whl (1.1 MB)
+Using cached adafruit_circuitpython_ads1x15-3.0.5-py3-none-any.whl (11 kB)
+Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Using cached adafruit_platformdetect-3.89.1-py3-none-any.whl (27 kB)
+Using cached adafruit_pureio-1.1.12-py3-none-any.whl (10 kB)
+Using cached binho_host_adapter-0.1.6-py3-none-any.whl (10 kB)
+Using cached pyftdi-0.57.2-py3-none-any.whl (146 kB)
+Using cached pyserial-3.5-py2.py3-none-any.whl (90 kB)
+Using cached pyusb-1.3.1-py3-none-any.whl (58 kB)
+Using cached sysv_ipc-1.2.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (72 kB)
+Using cached Adafruit_Blinka_Raspberry_Pi5_Neopixel-1.0.0rc2-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (80 kB)
+Using cached adafruit_circuitpython_busdevice-5.2.17-py3-none-any.whl (7.5 kB)
+Using cached adafruit_circuitpython_typing-1.13.0-py3-none-any.whl (12 kB)
+Using cached adafruit_circuitpython_requests-4.1.17-py3-none-any.whl (10 kB)
+Using cached adafruit_circuitpython_connectionmanager-3.1.8-py3-none-any.whl (7.8 kB)
+Using cached colorzero-2.0-py2.py3-none-any.whl (26 kB)
+Using cached setuptools-84.2.1-py3-none-any.whl (876 kB)
+Building wheels for collected packages: lgpio
+  Building wheel for lgpio (pyproject.toml) ... error
+  error: subprocess-exited-with-error
+  
+  × Building wheel for lgpio (pyproject.toml) did not run successfully.
+  │ exit code: 1
+  ╰─> [12 lines of output]
+      running bdist_wheel
+      running build
+      running build_py
+      running build_ext
+      building '_lgpio' extension
+      swigging lgpio.i to lgpio_wrap.c
+      swig -python -o lgpio_wrap.c lgpio.i
+      aarch64-linux-gnu-gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O2 -Wall -fPIC -Isrc -I/home/itlw/itlw/.venv/include -I/usr/include/python3.13 -c lgpio_wrap.c -o build/temp.linux-aarch64-cpython-313/lgpio_wrap.o
+      aarch64-linux-gnu-gcc -shared -Wl,-O1 -Wl,-Bsymbolic-functions -Wl,-z,relro -g -fwrapv -O2 build/temp.linux-aarch64-cpython-313/lgpio_wrap.o -L/usr/lib/aarch64-linux-gnu -llgpio -o build/lib.linux-aarch64-cpython-313/_lgpio.cpython-313-aarch64-linux-gnu.so
+      /usr/bin/ld: cannot find -llgpio: No such file or directory
+      collect2: error: ld returned 1 exit status
+      error: Command '['aarch64-linux-gnu-gcc', '-shared', '-Wl,-O1', '-Wl,-Bsymbolic-functions', '-Wl,-z,relro', '-g', '-fwrapv', '-O2', 'build/temp.linux-aarch64-cpython-313/lgpio_wrap.o', '-L/usr/lib/aarch64-linux-gnu', '-llgpio', '-o', 'build/lib.linux-aarch64-cpython-313/_lgpio.cpython-313-aarch64-linux-gnu.so']' returned non-zero exit status 1.
+      [end of output]
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+  ERROR: Failed building wheel for lgpio
+Failed to build lgpio
+error: failed-wheel-build-for-install
+
+× Failed to build installable wheels for some pyproject.toml based projects
+╰─> lgpio
+itlw@itlw:~/itlw$ bash scripts/install_raspberry_pi.sh
+Hit:1 http://deb.debian.org/debian trixie InRelease
+Hit:2 http://deb.debian.org/debian trixie-updates InRelease
+Hit:3 http://deb.debian.org/debian-security trixie-security InRelease
+Hit:4 http://archive.raspberrypi.com/debian trixie InRelease
+95 packages can be upgraded. Run 'apt list --upgradable' to see them.
+python3-full is already the newest version (3.13.5-1).
+python3-venv is already the newest version (3.13.5-1).
+python3-lgpio is already the newest version (0.2.2-1~rpt1+trixie).
+python3-lgpio set to manually installed.
+swig is already the newest version (4.3.0-1).
+libegl1 is already the newest version (1.7.0-1+b2).
+libgl1 is already the newest version (1.7.0-1+b2).
+libgl1-mesa-dri is already the newest version (26.2.2-1~bpo13+0~rpt1).
+Summary:
+  Upgrading: 0, Installing: 0, Removing: 0, Not Upgrading: 95
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+Requirement already satisfied: pip in ./.venv/lib/python3.13/site-packages (26.2.2)
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+Requirement already satisfied: pygame==2.6.1 in ./.venv/lib/python3.13/site-packages (from -r /home/itlw/itlw/requirements.txt (line 2)) (2.6.1)
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+Collecting gpiozero>=2.0 (from -r /home/itlw/itlw/requirements-hardware.txt (line 3))
+  Using cached gpiozero-2.0.1.post3-py3-none-any.whl.metadata (9.9 kB)
+Collecting adafruit-blinka>=8.0 (from -r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_blinka-9.2.0-py3-none-any.whl.metadata (5.9 kB)
+Collecting adafruit-circuitpython-ads1x15>=2.0 (from -r /home/itlw/itlw/requirements-hardware.txt (line 5))
+  Using cached adafruit_circuitpython_ads1x15-3.0.5-py3-none-any.whl.metadata (4.2 kB)
+Collecting colorzero (from gpiozero>=2.0->-r /home/itlw/itlw/requirements-hardware.txt (line 3))
+  Using cached colorzero-2.0-py2.py3-none-any.whl.metadata (4.1 kB)
+Collecting Adafruit-PlatformDetect>=3.89.1 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_platformdetect-3.89.1-py3-none-any.whl.metadata (3.8 kB)
+Collecting Adafruit-PureIO>=1.1.7 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_pureio-1.1.12-py3-none-any.whl.metadata (3.0 kB)
+Collecting binho-host-adapter>=0.1.6 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached binho_host_adapter-0.1.6-py3-none-any.whl.metadata (2.0 kB)
+Collecting pyftdi>=0.40.0 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached pyftdi-0.57.2-py3-none-any.whl.metadata (3.4 kB)
+Collecting adafruit-circuitpython-typing (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_circuitpython_typing-1.13.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting sysv_ipc>=1.1.0 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached sysv_ipc-1.2.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+Collecting rpi_ws281x>=4.0.0 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached rpi_ws281x-5.0.0-cp313-cp313-linux_aarch64.whl
+Collecting lgpio>=0.2.2.0 (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached lgpio-0.2.2.0.tar.gz (90 kB)
+  Installing build dependencies ... done
+  Getting requirements to build wheel ... done
+  Preparing metadata (pyproject.toml) ... done
+Collecting RPi.GPIO (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached rpi_gpio-0.7.1-cp313-cp313-linux_aarch64.whl
+Collecting Adafruit-Blinka-Raspberry-Pi5-Neopixel (from adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached Adafruit_Blinka_Raspberry_Pi5_Neopixel-1.0.0rc2-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (547 bytes)
+Collecting adafruit-circuitpython-busdevice (from adafruit-circuitpython-ads1x15>=2.0->-r /home/itlw/itlw/requirements-hardware.txt (line 5))
+  Using cached adafruit_circuitpython_busdevice-5.2.17-py3-none-any.whl.metadata (4.1 kB)
+Collecting typing-extensions~=4.0 (from adafruit-circuitpython-ads1x15>=2.0->-r /home/itlw/itlw/requirements-hardware.txt (line 5))
+  Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting pyserial (from binho-host-adapter>=0.1.6->adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached pyserial-3.5-py2.py3-none-any.whl.metadata (1.6 kB)
+Collecting pyusb!=1.2.0,>=1.0.0 (from pyftdi>=0.40.0->adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached pyusb-1.3.1-py3-none-any.whl.metadata (2.6 kB)
+Collecting adafruit-circuitpython-requests (from adafruit-circuitpython-typing->adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_circuitpython_requests-4.1.17-py3-none-any.whl.metadata (3.6 kB)
+Collecting Adafruit-Circuitpython-ConnectionManager (from adafruit-circuitpython-requests->adafruit-circuitpython-typing->adafruit-blinka>=8.0->-r /home/itlw/itlw/requirements-hardware.txt (line 4))
+  Using cached adafruit_circuitpython_connectionmanager-3.1.8-py3-none-any.whl.metadata (4.5 kB)
+Collecting setuptools (from colorzero->gpiozero>=2.0->-r /home/itlw/itlw/requirements-hardware.txt (line 3))
+  Using cached setuptools-84.2.1-py3-none-any.whl.metadata (6.6 kB)
+Using cached gpiozero-2.0.1.post3-py3-none-any.whl (151 kB)
+Using cached adafruit_blinka-9.2.0-py3-none-any.whl (1.1 MB)
+Using cached adafruit_circuitpython_ads1x15-3.0.5-py3-none-any.whl (11 kB)
+Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Using cached adafruit_platformdetect-3.89.1-py3-none-any.whl (27 kB)
+Using cached adafruit_pureio-1.1.12-py3-none-any.whl (10 kB)
+Using cached binho_host_adapter-0.1.6-py3-none-any.whl (10 kB)
+Using cached pyftdi-0.57.2-py3-none-any.whl (146 kB)
+Using cached pyserial-3.5-py2.py3-none-any.whl (90 kB)
+Using cached pyusb-1.3.1-py3-none-any.whl (58 kB)
+Using cached sysv_ipc-1.2.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (72 kB)
+Using cached Adafruit_Blinka_Raspberry_Pi5_Neopixel-1.0.0rc2-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (80 kB)
+Using cached adafruit_circuitpython_busdevice-5.2.17-py3-none-any.whl (7.5 kB)
+Using cached adafruit_circuitpython_typing-1.13.0-py3-none-any.whl (12 kB)
+Using cached adafruit_circuitpython_requests-4.1.17-py3-none-any.whl (10 kB)
+Using cached adafruit_circuitpython_connectionmanager-3.1.8-py3-none-any.whl (7.8 kB)
+Using cached colorzero-2.0-py2.py3-none-any.whl (26 kB)
+Using cached setuptools-84.2.1-py3-none-any.whl (876 kB)
+Building wheels for collected packages: lgpio
+  Building wheel for lgpio (pyproject.toml) ... error
+  error: subprocess-exited-with-error
+  
+  × Building wheel for lgpio (pyproject.toml) did not run successfully.
+  │ exit code: 1
+  ╰─> [12 lines of output]
+      running bdist_wheel
+      running build
+      running build_py
+      running build_ext
+      building '_lgpio' extension
+      swigging lgpio.i to lgpio_wrap.c
+      swig -python -o lgpio_wrap.c lgpio.i
+      aarch64-linux-gnu-gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O2 -Wall -fPIC -Isrc -I/home/itlw/itlw/.venv/include -I/usr/include/python3.13 -c lgpio_wrap.c -o build/temp.linux-aarch64-cpython-313/lgpio_wrap.o
+      aarch64-linux-gnu-gcc -shared -Wl,-O1 -Wl,-Bsymbolic-functions -Wl,-z,relro -g -fwrapv -O2 build/temp.linux-aarch64-cpython-313/lgpio_wrap.o -L/usr/lib/aarch64-linux-gnu -llgpio -o build/lib.linux-aarch64-cpython-313/_lgpio.cpython-313-aarch64-linux-gnu.so
+      /usr/bin/ld: cannot find -llgpio: No such file or directory
+      collect2: error: ld returned 1 exit status
+      error: Command '['aarch64-linux-gnu-gcc', '-shared', '-Wl,-O1', '-Wl,-Bsymbolic-functions', '-Wl,-z,relro', '-g', '-fwrapv', '-O2', 'build/temp.linux-aarch64-cpython-313/lgpio_wrap.o', '-L/usr/lib/aarch64-linux-gnu', '-llgpio', '-o', 'build/lib.linux-aarch64-cpython-313/_lgpio.cpython-313-aarch64-linux-gnu.so']' returned non-zero exit status 1.
+      [end of output]
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+  ERROR: Failed building wheel for lgpio
+Failed to build lgpio
+error: failed-wheel-build-for-install
+
+× Failed to build installable wheels for some pyproject.toml based projects
+╰─> lgpio
+itlw@itlw:~/itlw$ 
+

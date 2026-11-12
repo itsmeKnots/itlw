@@ -1,0 +1,2 @@
+# Tested for the desktop build and Raspberry Pi OS 64-bit.
+pygame==2.6.1

@@ -1,0 +1,5 @@
+# Optional Raspberry Pi hardware support. Install inside the app's venv with:
+# .venv/bin/pip install -r requirements-hardware.txt
+gpiozero>=2.0
+adafruit-blinka>=8.0
+adafruit-circuitpython-ads1x15>=2.0

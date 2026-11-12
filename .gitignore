@@ -1,0 +1,14 @@
+# Python bytecode and interpreter caches
+__pycache__/
+*.py[cod]
+
+# Per-machine environments and IDE scratch files
+.venv/
+venv/
+tempCodeRunnerFile.py
+
+# Generated Panda3D shader/cache data
+Panda3D-*/
+
+# Runtime error logs
+logs/
