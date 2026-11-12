@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run from labwc after the graphical session has exported its display.
+# Run from labwc after the graphical session has exported its display. Import
+# the display variables into the user manager before starting either unit.
 set -euo pipefail
 
 if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
@@ -7,12 +8,9 @@ if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
     exit 1
 fi
 
-session_vars=(XDG_RUNTIME_DIR)
-for variable in DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP; do
-    if [[ -n "${!variable:-}" ]]; then
-        session_vars+=("$variable")
-    fi
-done
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
+export DISPLAY="${DISPLAY:-}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is not set in the desktop session}"
 
-systemctl --user import-environment "${session_vars[@]}"
-systemctl --user restart itlw.service
+systemctl --user import-environment WAYLAND_DISPLAY DISPLAY XDG_RUNTIME_DIR
+systemctl --user start itlw.service
