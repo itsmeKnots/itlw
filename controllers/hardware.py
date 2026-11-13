@@ -275,7 +275,7 @@ class HardwareController:
         return self.read_inputs()
 
     def close(self):
-        self.stop()
+        worker_stopped = self.stop()
         for button in getattr(self, "_gpio_buttons", {}).values():
             try:
                 button.close()
@@ -284,20 +284,25 @@ class HardwareController:
         self._gpio_buttons = {}
         self._ads_channels = {}
         self._ads = None
-        if self._i2c is not None:
+        if self._i2c is not None and worker_stopped:
             try:
                 self._i2c.deinit()
             except OSError:
                 pass
             self._i2c = None
+        elif self._i2c is not None:
+            logger.warning("ADS worker did not stop; leaving I2C open until process exit")
         self.connected = False
 
-    def stop(self):
+    def stop(self, timeout: float = 1.0):
         self._worker_stop.set()
         worker = self._worker
         if worker and worker.is_alive() and worker is not threading.current_thread():
-            worker.join()
-        self._worker = None
+            worker.join(timeout=max(0.0, timeout))
+        stopped = worker is None or not worker.is_alive()
+        if stopped:
+            self._worker = None
+        return stopped
 
     def get_status(self):
         return self.status

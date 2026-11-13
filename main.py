@@ -1,5 +1,5 @@
 import logging
-import subprocess
+import signal
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import sys
@@ -11,8 +11,13 @@ from ui.theme import Theme, init_fonts
 from ui.transformer_view import TransformerView
 from ui.screens import AppState, IndexScreen, MainScreen
 from ui.update_ui import UpdateUI
+from ui.power_menu import (
+    PowerMenu, draw_power_button, draw_power_menu, handle_power_menu_pointer,
+    power_button_rect,
+)
 from controllers.hardware import get_hardware_controller
 from update_check import UpdateManager
+from power_actions import PowerActions
 
 
 def configure_logging():
@@ -30,51 +35,6 @@ def configure_logging():
         ],
     )
     return logging.getLogger(__name__)
-
-
-def draw_power_menu(surface, theme, selection, confirming):
-    """Draw the Power Menu overlay."""
-    width, height = surface.get_size()
-    colors = theme.colors
-    overlay = pygame.Surface((width, height), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 170))
-    surface.blit(overlay, (0, 0))
-    panel = pygame.Rect(0, 0, 380, 220 if confirming else 280)
-    panel.center = (width // 2, height // 2)
-    pygame.draw.rect(surface, colors["card"], panel, border_radius=10)
-    pygame.draw.rect(surface, colors["border"], panel, 2, border_radius=10)
-
-    def draw_text(text, y, size=18, bold=False):
-        image = theme.render_text(text, size, colors["text"], bold)
-        surface.blit(image, image.get_rect(center=(panel.centerx, y)))
-
-    if confirming:
-        action = "SHUT DOWN" if selection == 0 else "REBOOT"
-        draw_text("CONFIRM " + action, panel.top + 45, 21, True)
-        draw_text("Press MODE again to confirm.", panel.top + 105, 14)
-        draw_text("Press RESET to cancel.", panel.top + 140, 14)
-        return
-    draw_text("POWER MENU", panel.top + 38, 23, True)
-    options = ["SHUT DOWN", "REBOOT", "CANCEL"]
-    for index, option in enumerate(options):
-        y = panel.top + 95 + index * 48
-        if index == selection:
-            item = pygame.Rect(panel.left + 35, y - 16, panel.width - 70, 36)
-            pygame.draw.rect(surface, colors["border"], item, border_radius=5)
-        image = theme.render_text(("▶  " if index == selection else "    ") + option,
-                                 16, colors["text"], index == selection)
-        surface.blit(image, image.get_rect(center=(panel.centerx, y)))
-    draw_text("UP / DOWN SELECT     MODE CONFIRM", panel.bottom - 25, 10)
-
-
-def execute_power_action(action, logger):
-    """Request an operating-system shutdown or reboot."""
-    try:
-        subprocess.run(["/usr/bin/loginctl", action], check=True, timeout=10)
-        return True
-    except (OSError, subprocess.SubprocessError):
-        logger.exception("Power operation failed: %s", action)
-        return False
 
 
 def blit_stretched(screen, surface):
@@ -134,20 +94,57 @@ def main():
     # low is not treated as a fresh button press on the first frame.
     previous_hardware_inputs = hardware.read_inputs()
 
-    power_menu_open = False
-    power_menu_selection = 0
-    power_menu_confirming = False
+    power_menu = PowerMenu()
+    power_actions = PowerActions(logger=logger)
+    power_button_pressed = False
+    requested_action = None
     combo_started_at = None
-    combo_triggered = False
+    combo_latched = False
     power_menu_wait_for_release = False
-    power_menu_release_started_at = None
-    RELEASE_STABLE_MS = 200
+    menu_button_baseline = {"btn_mode": False, "btn_reset": False}
+    power_menu_opened_this_frame = False
     tactile_started = {}
     tactile_last_repeat = {}
     running = True
+    termination_requested = {"value": False}
+    previous_sigterm_handler = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGTERM,
+                  lambda _signum, _frame: termination_requested.__setitem__("value", True))
     last_time = pygame.time.get_ticks() / 1000.0
 
+    def open_power_menu(snapshot):
+        nonlocal power_menu_opened_this_frame
+        if snapshot.state == "updating" or update_ui.confirming:
+            return False
+        for action in ("restart_app", "reboot", "poweroff"):
+            allowed, reason = power_actions.availability(action)
+            power_menu.set_availability(action, allowed, reason)
+        was_open = power_menu.is_open
+        power_menu.open()
+        if not was_open and power_menu.is_open:
+            power_menu_opened_this_frame = True
+        return power_menu.is_open
+
+    def activate_power_menu():
+        nonlocal requested_action
+        action = power_menu.activate()
+        if action and action != "return_to_app":
+            requested_action = action
+
+    def handle_power_key(key):
+        if key in (pygame.K_UP, pygame.K_LEFT):
+            power_menu.move_selection(-1)
+        elif key in (pygame.K_DOWN, pygame.K_RIGHT):
+            power_menu.move_selection(1)
+        elif key in (pygame.K_RETURN, pygame.K_SPACE):
+            activate_power_menu()
+        elif key == pygame.K_ESCAPE:
+            power_menu.cancel()
+
     while running:
+        if termination_requested["value"]:
+            running = False
+            break
         current_time = pygame.time.get_ticks() / 1000.0
         dt = current_time - last_time
         last_time = current_time
@@ -157,6 +154,7 @@ def main():
             update_ui.show_notice(update_notice)
 
         for event in pygame.event.get():
+            raw_event = event
             update_snapshot = update_manager.snapshot
             if update_snapshot.state == "updating" or update_ui.confirming:
                 event, surface_size = scale_pointer_event(
@@ -165,34 +163,20 @@ def main():
                 update_ui.handle_event(event, update_snapshot, surface_size, state.active_screen)
                 continue
 
-            if power_menu_open:
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        if power_menu_confirming:
-                            power_menu_confirming = False
-                        else:
-                            power_menu_open = False
-                    elif event.key in (pygame.K_UP, pygame.K_DOWN):
-                        if not power_menu_confirming:
-                            direction = -1 if event.key == pygame.K_UP else 1
-                            power_menu_selection = (power_menu_selection + direction) % 3
-                    elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
-                        if power_menu_confirming:
-                            action = "poweroff" if power_menu_selection == 0 else "reboot"
-                            if execute_power_action(action, logger):
-                                running = False
-                            else:
-                                power_menu_confirming = False
-                        elif power_menu_selection == 2:
-                            power_menu_open = False
-                        else:
-                            power_menu_confirming = True
+            if power_menu.is_open:
+                if event.type == pygame.KEYDOWN:
+                    handle_power_key(event.key)
+                elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    _consumed, action = handle_power_menu_pointer(
+                        power_menu, event.pos, screen.get_size()
+                    )
+                    if action and action != "return_to_app":
+                        requested_action = action
                 continue
 
             if event.type == pygame.QUIT:
-                running = False
+                open_power_menu(update_snapshot)
+                continue
             elif event.type == pygame.VIDEORESIZE:
                 if getattr(cfg, "RESIZABLE", True):
                     size = (max(cfg.MIN_WINDOW_WIDTH, event.w), max(cfg.MIN_WINDOW_HEIGHT, event.h))
@@ -202,13 +186,31 @@ def main():
                     if state.help_visible:
                         state.help_visible = False
                         continue
-                    running = False
+                    open_power_menu(update_snapshot)
+                    continue
+                elif event.key == pygame.K_p:
+                    open_power_menu(update_snapshot)
+                    continue
                 elif state.active_screen == "workbench" and event.key == pygame.K_r:
                     main_screen._reset(state)
                 elif state.active_screen == "workbench" and event.key == pygame.K_m:
                     main_screen._toggle_mode(state)
                 elif state.active_screen == "workbench" and event.key == pygame.K_a:
                     state.animation_enabled = not state.animation_enabled
+
+            active_name = state.active_screen
+            power_rect = power_button_rect(screen.get_size(), active_name)
+            if raw_event.type == pygame.MOUSEBUTTONDOWN and raw_event.button == 1:
+                if power_rect.collidepoint(raw_event.pos):
+                    power_button_pressed = True
+                    continue
+            elif raw_event.type == pygame.MOUSEBUTTONUP and raw_event.button == 1:
+                was_power_pressed = power_button_pressed
+                power_button_pressed = False
+                if was_power_pressed:
+                    if power_rect.collidepoint(raw_event.pos):
+                        open_power_menu(update_snapshot)
+                    continue
             try:
                 on_workbench = state.active_screen == "workbench"
                 active_screen = main_screen if on_workbench else index_screen
@@ -227,71 +229,70 @@ def main():
         if main_screen.hardware_status != hardware_status:
             main_screen.hardware_status = hardware_status
         pressed = lambda name: physical.get(name, False) and not previous_hardware_inputs.get(name, False)
-        mode_down = physical.get("btn_mode", False)
-        reset_down = physical.get("btn_reset", False)
         update_snapshot = update_manager.snapshot
-        # MODE and RESET now have dedicated push-button actions; do not use
-        # their old long-press chord to open the power menu.
-        combo_active = False
-        if combo_active:
-            if combo_started_at is None:
-                combo_started_at = pygame.time.get_ticks()
-            elif pygame.time.get_ticks() - combo_started_at >= 2000 and not combo_triggered:
-                if not power_menu_open:
-                    power_menu_open = True
-                    power_menu_selection = 0
-                    power_menu_confirming = False
-                    power_menu_wait_for_release = True
-                    power_menu_release_started_at = None
-                combo_triggered = True
-        else:
+        update_blocked = update_snapshot.state == "updating" or update_ui.confirming
+        if update_blocked:
+            power_menu.dismiss()
             combo_started_at = None
+            requested_action = None
+        elif power_menu.state in {PowerMenu.COUNTDOWN, PowerMenu.NOTICE}:
+            action = power_menu.tick(dt)
+            if action:
+                requested_action = action
 
-        if power_menu_open and update_snapshot.state != "updating":
-            if power_menu_wait_for_release:
-                if not mode_down and not reset_down:
-                    if power_menu_release_started_at is None:
-                        power_menu_release_started_at = pygame.time.get_ticks()
-                    elif pygame.time.get_ticks() - power_menu_release_started_at >= RELEASE_STABLE_MS:
-                        power_menu_wait_for_release = False
-                        power_menu_release_started_at = None
-                else:
-                    power_menu_release_started_at = None
+        vp_combo_down = (physical.get("vp_plus_10", False)
+                         and physical.get("vp_minus_10", False))
+        if not update_blocked and not power_menu.is_open:
+            if vp_combo_down:
+                if combo_started_at is None and not combo_latched:
+                    combo_started_at = pygame.time.get_ticks()
+                if (combo_started_at is not None and not combo_latched
+                        and pygame.time.get_ticks() - combo_started_at >= 2000):
+                    if open_power_menu(update_snapshot):
+                        combo_latched = True
+                        power_menu_wait_for_release = True
+                        menu_button_baseline = {
+                            "btn_mode": physical.get("btn_mode", False),
+                            "btn_reset": physical.get("btn_reset", False),
+                        }
             else:
-                if not power_menu_confirming:
-                    if pressed("btn_up") or pressed("btn_inc"):
-                        power_menu_selection = (power_menu_selection - 1) % 3
-                    elif pressed("btn_down") or pressed("btn_dec"):
-                        power_menu_selection = (power_menu_selection + 1) % 3
-                elif pressed("btn_mode"):
-                    action = "poweroff" if power_menu_selection == 0 else "reboot"
-                    if execute_power_action(action, logger):
-                        running = False
-                    else:
-                        power_menu_confirming = False
-                if not power_menu_confirming and pressed("btn_mode"):
-                    if power_menu_selection == 2:
-                        power_menu_open = False
-                    else:
-                        power_menu_confirming = True
-                if pressed("btn_reset"):
-                    if power_menu_confirming:
-                        power_menu_confirming = False
-                    else:
-                        power_menu_open = False
+                combo_started_at = None
+                combo_latched = False
 
-        elif not combo_active and update_snapshot.state != "updating":
-            mode_handled = pressed("btn_mode") and update_ui.handle_hardware_button(
-                "btn_mode", update_snapshot, state.active_screen
-            )
-            reset_handled = pressed("btn_reset") and update_ui.handle_hardware_button(
-                "btn_reset", update_snapshot, state.active_screen
-            )
-            if mode_handled or reset_handled:
-                pass
-            elif state.active_screen == "index":
-                # CHANGED (2/2): only the MODE button leaves the index,
-                # not any of the 14 GPIO pins.
+        if power_menu.is_open and not update_blocked:
+            if power_menu_opened_this_frame:
+                menu_button_baseline = {
+                    "btn_mode": physical.get("btn_mode", False),
+                    "btn_reset": physical.get("btn_reset", False),
+                }
+                power_menu_opened_this_frame = False
+            elif power_menu_wait_for_release:
+                menu_button_baseline = {
+                    "btn_mode": physical.get("btn_mode", False),
+                    "btn_reset": physical.get("btn_reset", False),
+                }
+                if not physical.get("vp_plus_10", False) and not physical.get("vp_minus_10", False):
+                    power_menu_wait_for_release = False
+            else:
+                if pressed("vp_plus_1"):
+                    power_menu.move_selection(-1)
+                elif pressed("vp_minus_1"):
+                    power_menu.move_selection(1)
+                reset_changed = (physical.get("btn_reset", False)
+                                 != menu_button_baseline["btn_reset"])
+                mode_changed = (physical.get("btn_mode", False)
+                                != menu_button_baseline["btn_mode"])
+                if reset_changed:
+                    power_menu.cancel()
+                elif mode_changed:
+                    activate_power_menu()
+                menu_button_baseline = {
+                    "btn_mode": physical.get("btn_mode", False),
+                    "btn_reset": physical.get("btn_reset", False),
+                }
+
+        elif not update_blocked and not power_menu.is_open:
+            if state.active_screen == "index":
                 if pressed("btn_mode"):
                     state.active_screen = "workbench"
             elif state.active_screen == "workbench":
@@ -306,6 +307,10 @@ def main():
 
                 now_ms = pygame.time.get_ticks()
                 for name, (key, delta) in cfg.TACTILE_ACTIONS.items():
+                    if name in {"vp_plus_10", "vp_minus_10"} and vp_combo_down:
+                        tactile_started.pop(name, None)
+                        tactile_last_repeat.pop(name, None)
+                        continue
                     down = physical.get(name, False)
                     if pressed(name):
                         main_screen.nudge(state, key, delta)
@@ -323,15 +328,18 @@ def main():
                         tactile_last_repeat.pop(name, None)
                 main_screen.apply_hardware_knobs(state, physical)
 
-        if not mode_down and not reset_down:
-            combo_triggered = False
         previous_hardware_inputs = physical
+        power_menu_opened_this_frame = False
         active_screen = main_screen if state.active_screen == "workbench" else index_screen
         update_manager.poll_result()
         update_notice = update_manager.take_notice()
         if update_notice:
             update_ui.show_notice(update_notice)
         update_snapshot = update_manager.snapshot
+        update_blocked = update_snapshot.state == "updating" or update_ui.confirming
+        if update_blocked:
+            power_menu.dismiss()
+            requested_action = None
         if active_screen is main_screen:
             active_screen.tick_hold()
             active_screen.draw(workbench_surface, state, dt)
@@ -341,23 +349,33 @@ def main():
             active_screen.draw(index_surface, state, dt)
             update_ui.draw(index_surface, update_snapshot, "index")
             blit_stretched(screen, index_surface)
-        if (power_menu_open and update_snapshot.state != "updating"
-                and not update_ui.confirming):
-            draw_power_menu(screen, theme, power_menu_selection, power_menu_confirming)
+        if not update_blocked:
+            if power_menu.is_open:
+                draw_power_menu(screen, theme, power_menu)
+            else:
+                draw_power_button(screen, theme, state.active_screen)
         pygame.display.flip()
+        if requested_action or termination_requested["value"]:
+            running = False
         clock.tick(cfg.FPS)
 
-    transformer_view.close()
-    hardware.close()
     update_manager.stop()
+    hardware.stop(timeout=2.0)
+    hardware.close()
+    transformer_view.close()
     pygame.quit()
-    sys.exit()
+    signal.signal(signal.SIGTERM, previous_sigterm_handler)
+
+    if requested_action in {"restart_app", "reboot", "poweroff"}:
+        if not power_actions.execute(requested_action):
+            logger.error("Could not complete requested power action: %s", requested_action)
+    return 0
 
 
 if __name__ == "__main__":
     configure_logging()
     try:
-        main()
+        raise SystemExit(main())
     except Exception:
         logging.getLogger(__name__).exception("Application stopped because of an unhandled error")
         pygame.quit()
