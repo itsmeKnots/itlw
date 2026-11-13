@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -15,8 +16,12 @@ import tempfile
 import threading
 import time
 from typing import Callable
+from urllib.parse import quote
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+
+logger = logging.getLogger(__name__)
 
 
 GITHUB_API_URL = "https://api.github.com/repos/itsmeKnots/itlw/commits/main"
@@ -134,8 +139,25 @@ class UpdateChecker:
         try:
             local_commit = self.local_commit_reader(self.repo_dir)
             local_hash = local_commit[:7]
+            api_url = self.api_url
+            if api_url == GITHUB_API_URL:
+                try:
+                    branch = subprocess.run(
+                        ["git", "branch", "--show-current"], cwd=self.repo_dir,
+                        check=True, capture_output=True, text=True, timeout=2,
+                    ).stdout.strip()
+                except subprocess.CalledProcessError:
+                    # A custom commit reader may be used without a Git checkout.
+                    branch = "main"
+                if not branch:
+                    raise RuntimeError("Cannot check updates from detached HEAD")
+                branch_path = quote(branch, safe="/")
+                api_url = (
+                    "https://api.github.com/repos/itsmeKnots/itlw/commits/"
+                    f"{branch_path}"
+                )
             request = Request(
-                self.api_url,
+                api_url,
                 headers={
                     "Accept": "application/vnd.github+json",
                     "User-Agent": "ITLW-Transformer-Workbench",
@@ -263,11 +285,15 @@ class UpdateManager:
         def start_service() -> None:
             try:
                 self.service_starter()
-            except Exception:
+            except Exception as exc:
+                logger.exception("Could not start the update service")
                 with self._lock:
                     self._starting_update = False
                     self._failure = True
-                    self._notice = "Could not start the update service. Please try again later."
+                    reason = str(exc).strip()
+                    self._notice = "Could not start update service"
+                    if reason:
+                        self._notice += f": {reason[:100]}"
 
         threading.Thread(target=start_service, name="itlw-update-request", daemon=True).start()
         return True
@@ -330,6 +356,9 @@ class UpdateManager:
             text = "Updated successfully"
         elif result.get("result") == "rolled_back":
             text = "Update failed - previous version restored"
+        elif result.get("result") == "skipped" and result.get("reason"):
+            reason = str(result["reason"]).strip()
+            text = f"Update not applied: {reason[:100]}" if reason else None
         elif result.get("result") == "updating":
             return
         if text:

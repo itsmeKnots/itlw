@@ -11,7 +11,7 @@ log() {
 main() {
     set -Eeuo pipefail
 
-    local project_dir service_name lock_dir lock_file state_dir state_file result_file
+    local project_dir service_name update_branch lock_dir lock_file state_dir state_file result_file
     local previous target status changed_app changed_hardware rollback_armed
     local failure_status failure_command tmp_bad_commit
 
@@ -86,6 +86,15 @@ PY
         return 1
     fi
 
+    update_branch="$(git branch --show-current)"
+
+    if [[ -z "$update_branch" ]]; then
+        previous="$(git rev-parse HEAD 2>/dev/null || true)"
+        log "ERROR: cannot update from detached HEAD"
+        write_result skipped "$previous" "" "cannot update from detached HEAD"
+        return 1
+    fi
+
     status="$(git status --porcelain --untracked-files=normal)" || {
         log "ERROR: could not inspect Git working tree"
         return 1
@@ -109,8 +118,8 @@ PY
         return 0
     fi
 
-    if ! git fetch --quiet origin main; then
-        log "ERROR: git fetch origin main failed"
+    if ! git fetch --quiet origin "$update_branch"; then
+        log "ERROR: git fetch origin $update_branch failed"
         previous="$(git rev-parse HEAD 2>/dev/null || true)"
         write_result skipped "$previous" "" "GitHub fetch failed"
         return 1
@@ -120,8 +129,8 @@ PY
         log "ERROR: could not determine current commit"
         return 1
     }
-    target="$(git rev-parse refs/remotes/origin/main)" || {
-        log "ERROR: could not determine origin/main commit"
+    target="$(git rev-parse "refs/remotes/origin/$update_branch")" || {
+        log "ERROR: could not determine origin/$update_branch commit"
         return 1
     }
     if [[ "$previous" == "$target" ]]; then
@@ -131,12 +140,12 @@ PY
     fi
 
     if [[ -f "$state_file" ]] && [[ "$(<"$state_file")" == "$target" ]]; then
-        log "SKIPPED: origin/main $target previously failed; waiting for a newer commit"
+        log "SKIPPED: origin/$update_branch $target previously failed; waiting for a newer commit"
         write_result skipped "$previous" "$target" "this commit previously failed and was rolled back"
         return 0
     fi
     if ! git merge-base --is-ancestor "$previous" "$target"; then
-        log "ERROR: origin/main $target is not a fast-forward from $previous"
+        log "ERROR: origin/$update_branch $target is not a fast-forward from $previous"
         write_result skipped "$previous" "$target" "update is not a fast-forward"
         return 1
     fi
