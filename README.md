@@ -168,9 +168,9 @@ GPIO and ADS controls are attempted on every launch; keyboard and mouse remain a
    python main.py
    ```
 
-The app is designed for a 1280 × 720 desktop window and supports resizing down to 900 × 620. Press `Esc` or `P`, click the on-screen **Power** button, or use the physical hold gesture to open the power menu. Closing the window also opens that menu.
+The app is designed for a 1280 × 720 desktop window and supports resizing down to 900 × 620. Press Esc for power menu. On the Raspberry Pi, hold Vp +10 and Vp -10 to open power menu.
 
-The launch page includes live local-time and calendar widgets, plus placeholders for a project document and demo tutorial. Select **Open Workbench** or press `Enter` to launch the simulator. Press `Home` in the simulator to return to the launch page.
+The launch page includes live local-time and calendar widgets, plus placeholders for a project document and demo tutorial. Select **Open Workbench** or press `Enter` to launch the simulator. Press `H` in the simulator to return to the launch page.
 
 ## How to use it
 
@@ -189,17 +189,16 @@ Set the primary input voltage `Vp` in the Voltage card, choose an operation in t
 | `M` | Toggle Step-Up and Step-Down presets |
 | `R` | Reset to 12 V, Np = 100, Ns = 200 |
 | `A` | Toggle flux animation |
-| `H` | Show or hide the shortcut help panel |
-| `Esc` | Close help; otherwise open the power menu |
+| `H` | Return to the dashboard |
+| `Esc` | Open the power menu, or go back within it |
 | `P` | Open the power menu |
 
-Hover over a control for a short description. The header also keeps the `Press H for Help` legend visible.
+On-screen hints: **Press Esc for power menu** (keyboard); **Hold Vp +10 and Vp -10 to open power menu** (hardware).
 
 The power menu contains **Return to app**, **Restart app**, **Exit to desktop**,
 **Reboot**, and **Shut down**. Reboot and Shut down require a second confirmation
 and show a cancellable 10-second countdown. In the menu, use arrow keys to
-move, `Enter` to choose, and `Esc` to go back or return to the app. The visible
-Power button provides the touch and mouse route. **Exit to desktop** also asks
+move, `Enter` to choose, and `Esc` to go back or return to the app. **Exit to desktop** also asks
 for confirmation. **Restart app** is available when the program is running as
 `itlw.service`; Reboot and Shut down are available only on a Raspberry Pi with
 hardware controls enabled.
@@ -238,10 +237,9 @@ Edit `config.py` to adjust the window dimensions, minimum resize size, FPS, nume
 
 ## Physical controls (Raspberry Pi)
 
-Hardware input is attempted by default. Keyboard and mouse remain active at the same time. GPIO inputs use internal pull-ups; connect each button between its GPIO and Pi GND. The 12 tactile buttons map to Vp, Np, and Ns adjustments (`+1`, `-1`, `+10`, `-10` per value). MODE uses BCM GPIO 20 and RESET uses BCM GPIO 21. The tactile buttons repeat while held. Pin assignments are in `HARDWARE_BUTTON_PINS` and `TACTILE_ACTIONS` in `config.py`.
+Hardware input is attempted by default. Keyboard controls remain active at the same time. GPIO inputs use internal pull-ups; connect each button between its GPIO and Pi GND. The 12 tactile buttons map to Vp, Np, and Ns adjustments (`+1`, `-1`, `+10`, `-10` per value). MODE uses BCM GPIO 20 and RESET uses BCM GPIO 21. The tactile buttons repeat while held. Pin assignments are in `HARDWARE_BUTTON_PINS` and `TACTILE_ACTIONS` in `config.py`.
 
-To open the power menu from the physical controls, hold the Vp `+10` and `-10`
-buttons together for 2 seconds. Release both before using the menu. Vp `+1` and
+Hold Vp +10 and Vp -10 to open power menu. Hold both for 2 seconds, then release them before using the menu. Vp `+1` and
 `-1` move the selection; each MODE switch state change confirms, and each RESET
 switch state change goes back or cancels. While the menu is open, all other
 physical controls are ignored. The power menu is unavailable while the update

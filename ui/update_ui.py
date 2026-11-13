@@ -6,6 +6,7 @@ import time
 import pygame
 
 import config as cfg
+from ui.header_layout import layout_header
 
 
 class UpdateUI:
@@ -19,18 +20,25 @@ class UpdateUI:
         self.notice = ""
         self.notice_until = 0.0
 
-    @staticmethod
-    def action_rects(size, active_screen="workbench"):
+    def action_rects(self, size, active_screen="workbench", snapshot=None):
         width, height = size
-        if active_screen == "index":
-            trigger = pygame.Rect(width // 2 - 130, height - 34, 310, 28)
-        else:
-            trigger = pygame.Rect(width - 426, 8, 300, 40)
+        snapshot = snapshot or type("Snapshot", (), {"local_hash": "-------", "state": "idle"})()
+        layout = layout_header(self.theme, size, active_screen,
+                               f"v{snapshot.local_hash or '-------'}", self._label(snapshot))
+        trigger = layout.update.rect
         return {
             "trigger": trigger,
             "install": pygame.Rect(width // 2 - 180, height // 2 + 35, 160, 46),
             "later": pygame.Rect(width // 2 + 20, height // 2 + 35, 160, 46),
         }
+
+    @staticmethod
+    def _label(snapshot):
+        return {
+            "update_available": "UPDATE AVAILABLE - INSTALL NOW",
+            "checking": "CHECKING FOR UPDATES...",
+            "updating": "UPDATING...",
+        }.get(snapshot.state, "CHECK FOR UPDATES [U]")
 
     def show_notice(self, message: str, duration: float = 5.0) -> None:
         self.notice = message
@@ -50,7 +58,10 @@ class UpdateUI:
             else:
                 self.request_check()
             return True
-        rects = self.action_rects(surface_size, active_screen)
+        layout = layout_header(self.theme, surface_size, active_screen,
+                               "", self._label(snapshot), f"v{snapshot.local_hash or '-------'}")
+        rects = self.action_rects(surface_size, active_screen, snapshot)
+        rects["trigger"] = layout.update.rect
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             return rects["trigger"].collidepoint(event.pos)
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -96,26 +107,26 @@ class UpdateUI:
         width, height = surface.get_size()
         colors = self.theme.colors
         local = snapshot.local_hash or "-------"
-        if active_screen == "index":
-            self._text(surface, f"v{local}", (width - 16, 11),
-                       10, colors["text_subtle"], True, "topright")
-        else:
-            self._text(surface, f"v{local}", (width - 434, 19),
-                       11, colors["text_subtle"], True, "midright")
+        status_text = f"v{local}"
+        layout = layout_header(self.theme, (width, height), active_screen,
+                               "Press Esc for power menu",
+                               self._label(snapshot) if self.mode == "manual" else None,
+                               status_text)
+        self._text(surface, layout.status.text, layout.status.rect.topleft,
+                   layout.status.font_size, colors["text_subtle"], True)
+        if layout.version:
+            self._text(surface, layout.version.text, layout.version.rect.topleft,
+                       layout.version.font_size, colors["text_subtle"], True)
 
         if self.mode == "manual":
-            label = {
-                "update_available": "UPDATE AVAILABLE - INSTALL NOW",
-                "checking": "CHECKING FOR UPDATES...",
-                "updating": "UPDATING...",
-            }.get(snapshot.state, "CHECK FOR UPDATES  [U]")
-            rect = self.action_rects((width, height), active_screen)["trigger"]
+            label = self._label(snapshot)
+            rect = layout.update.rect
             active = snapshot.state == "update_available"
             fill = cfg.COLOR_ACCENT_PRIMARY if active else colors["button"]
             fg = (255, 255, 255) if active else colors["text"]
             pygame.draw.rect(surface, fill, rect, border_radius=cfg.CORNER_RADIUS)
             pygame.draw.rect(surface, colors["border"], rect, 1, border_radius=cfg.CORNER_RADIUS)
-            image = self.theme.render_text(label, 11, fg, True)
+            image = self.theme.render_text(layout.update.text, layout.update.font_size, fg, True)
             surface.blit(image, image.get_rect(center=rect.center))
 
         if snapshot.state == "updating":
@@ -151,7 +162,7 @@ class UpdateUI:
             message = snapshot.remote_message.replace("\n", " ")[:72]
             self._text(surface, message, (panel.centerx, panel.top + 123), 12,
                        self.theme.colors["text_subtle"], False, "midtop")
-        rects = self.action_rects((width, height))
+        rects = self.action_rects((width, height), active_screen, snapshot)
         for index, (name, label) in enumerate((("install", "INSTALL"), ("later", "LATER"))):
             rect = rects[name]
             selected = index == self.selected_action

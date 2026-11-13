@@ -129,6 +129,50 @@ class PowerMenu:
         return True
 
 
+def power_gesture_held(inputs, held_ms: int) -> bool:
+    """True after both Vp ±10 buttons have been held for two seconds."""
+    return (inputs.get("vp_plus_10", False) and inputs.get("vp_minus_10", False)
+            and held_ms >= 2000)
+
+
+def handle_power_menu_key(menu: PowerMenu, key: int) -> str | None:
+    """Apply the keyboard-only navigation used while the menu is open."""
+    if key in (pygame.K_UP, pygame.K_LEFT):
+        menu.move_selection(-1)
+    elif key in (pygame.K_DOWN, pygame.K_RIGHT):
+        menu.move_selection(1)
+    elif key in (pygame.K_RETURN, pygame.K_SPACE):
+        return menu.activate()
+    elif key == pygame.K_ESCAPE:
+        menu.cancel()
+    return None
+
+
+def handle_power_menu_event(menu: PowerMenu, event) -> str | None:
+    """Handle keyboard input only; pointer events have no menu action."""
+    if event.type == pygame.KEYDOWN:
+        return handle_power_menu_key(menu, event.key)
+    return None
+
+
+def opens_power_menu_from_key(key: int) -> bool:
+    """Keyboard entry points for opening the menu."""
+    return key in (pygame.K_ESCAPE, pygame.K_p)
+
+
+def handle_power_menu_hardware(menu: PowerMenu, control: str) -> str | None:
+    """Apply a physical menu action after its state change is detected."""
+    if control == "vp_plus_1":
+        menu.move_selection(-1)
+    elif control == "vp_minus_1":
+        menu.move_selection(1)
+    elif control == "btn_mode":
+        return menu.activate()
+    elif control == "btn_reset":
+        menu.cancel()
+    return None
+
+
 def power_menu_layout(size, menu: PowerMenu):
     """Return actual-surface hit targets for the current menu state."""
     width, height = size
@@ -155,60 +199,11 @@ def power_menu_layout(size, menu: PowerMenu):
     return panel, {}
 
 
-def handle_power_menu_pointer(menu: PowerMenu, position, size) -> tuple[bool, str | None]:
-    """Handle a pointer release on the menu; callers supply display coordinates."""
-    panel, controls = power_menu_layout(size, menu)
-    if menu.state == PowerMenu.MENU:
-        for index, rect in enumerate(controls):
-            if rect.collidepoint(position):
-                menu.selection = index
-                menu.message = ""
-                return True, menu.activate()
-    elif menu.state == PowerMenu.CONFIRM:
-        if controls["confirm"].collidepoint(position):
-            return True, menu.activate()
-        if controls["cancel"].collidepoint(position):
-            menu.cancel()
-            return True, None
-    elif menu.state in {PowerMenu.COUNTDOWN, PowerMenu.NOTICE}:
-        if controls["cancel"].collidepoint(position):
-            menu.cancel()
-            return True, None
-    if not panel.collidepoint(position):
-        menu.cancel()
-        return True, None
-    return True, None
-
-
 def countdown_message(action: str, remaining: float) -> str:
     seconds = max(1, math.ceil(remaining))
     action_label = "Shutdown" if action == "poweroff" else "Reboot"
     unit = "second" if seconds == 1 else "seconds"
     return f"{action_label} starts in {seconds} {unit}"
-
-
-def power_button_rect(size, active_screen="workbench"):
-    """Position a tappable Power control while preserving a 48-pixel target."""
-    width, height = size
-    if active_screen == "index":
-        sx, sy = width / cfg.UI_INDEX_WIDTH, height / cfg.UI_INDEX_HEIGHT
-        card = pygame.Rect(round(24 * sx), round(24 * sy), round(512 * sx), round(146 * sy))
-        button_width, button_height = max(72, round(96 * sx)), max(52, round(52 * sy))
-        return pygame.Rect(card.right - button_width - 10,
-                           card.top + (card.height - button_height) // 2,
-                           button_width, button_height)
-    sx, sy = width / cfg.UI_WIDTH, height / cfg.UI_HEIGHT
-    button_width, button_height = max(72, round(96 * sx)), max(52, round(52 * sy))
-    return pygame.Rect(round(660 * sx), round(2 * sy), button_width, button_height)
-
-
-def draw_power_button(surface, theme, active_screen="workbench") -> None:
-    rect = power_button_rect(surface.get_size(), active_screen)
-    pygame.draw.rect(surface, theme.colors["button"], rect, border_radius=cfg.CORNER_RADIUS)
-    pygame.draw.rect(surface, theme.colors["border"], rect, 1,
-                     border_radius=cfg.CORNER_RADIUS)
-    image = theme.render_text("POWER", 13, theme.colors["text"], True)
-    surface.blit(image, image.get_rect(center=rect.center))
 
 
 def draw_power_menu(surface, theme, menu: PowerMenu) -> None:
