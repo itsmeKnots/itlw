@@ -24,7 +24,10 @@ def configure_logging():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        handlers=[RotatingFileHandler(log_file, maxBytes=1_000_000, backupCount=3, encoding="utf-8")],
+        handlers=[
+            RotatingFileHandler(log_file, maxBytes=1_000_000, backupCount=3, encoding="utf-8"),
+            logging.StreamHandler(sys.stderr),
+        ],
     )
     return logging.getLogger(__name__)
 
@@ -220,6 +223,9 @@ def main():
                 logger.exception("Unhandled error while processing event: %r", event)
 
         physical = hardware.read_inputs()
+        hardware_status = hardware.get_status()
+        if main_screen.hardware_status != hardware_status:
+            main_screen.hardware_status = hardware_status
         pressed = lambda name: physical.get(name, False) and not previous_hardware_inputs.get(name, False)
         mode_down = physical.get("btn_mode", False)
         reset_down = physical.get("btn_reset", False)

@@ -466,6 +466,9 @@ class MainScreen:
                    (self.pad, 9), 20, cfg.COLOR_TEXT, True)
         self._text(surface, "Step-up / step-down demonstration  \u00b7  Vs = Vp \u00d7 (Ns / Np)",
                    (self.pad, 34), 12, cfg.COLOR_TEXT_SUBTLE)
+        if getattr(self, "hardware_status", "") == "I2C bus unhealthy":
+            self._text(surface, "I2C INPUT UNAVAILABLE - USING LAST READING",
+                       (cfg.UI_WIDTH - 310, 34), 10, (170, 45, 35), True)
         self._button(surface, self.btn_home, "Home")
 
     def _draw_model(self, surface, state, phase):
