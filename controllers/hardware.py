@@ -6,6 +6,7 @@ Switches connect to GPIO input to GND; internal pull-ups are enabled.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 
 import config as cfg
@@ -20,8 +21,9 @@ class HardwareController:
     KNOB_NAMES = ("pot_np", "pot_ns")
 
     def __init__(self):
+        self._lock = threading.Lock()
         self.connected = False
-        self.status = "Hardware disabled"
+        self._status = "Hardware disabled"
         self._gpio = None
         self._ads = None
         self._i2c = None
@@ -30,35 +32,64 @@ class HardwareController:
                       **{name: None for name in self.KNOB_NAMES}}
         self._last_values = {name: None for name in self.KNOB_NAMES}
         self._last_sample_at = 0.0
+        self._last_good_sample_at = None
+        self._sampling_started_at = None
         self._i2c_failures = 0
         self._last_error = None
+        self._worker_stop = threading.Event()
+        self._worker = None
+
+    @property
+    def status(self):
+        with self._lock:
+            reference = self._last_good_sample_at or self._sampling_started_at
+            stale = (bool(self._ads_channels) and reference is not None and
+                     time.monotonic() - reference > 1.0)
+            return "I2C bus unhealthy" if stale else self._status
+
+    @status.setter
+    def status(self, value):
+        with self._lock:
+            self._status = value
+
+    @property
+    def data_stale(self):
+        with self._lock:
+            reference = self._last_good_sample_at or self._sampling_started_at
+            return (bool(self._ads_channels) and reference is not None and
+                    time.monotonic() - reference > 1.0)
 
     def _read_channel(self, name, channel):
         """Read one ADS channel, preserving its last good value on bus errors."""
         for attempt in range(3):
             try:
                 voltage = channel.voltage
-                self._mark_i2c_healthy()
-                return voltage
+                return voltage, True
             except OSError as exc:
                 if str(exc) != self._last_error:
                     logger.warning("I2C read failed for %s: %s", name, exc)
                     self._last_error = str(exc)
                 if attempt < 2:
-                    time.sleep(0.05)
-        return self._last_values.get(name)
+                    if self._worker_stop.wait(0.05):
+                        break
+        with self._lock:
+            return self._last_values.get(name), False
 
     def _mark_i2c_healthy(self):
-        if self.status.startswith("I2C bus unhealthy"):
-            self.status = "Hardware connected"
+        with self._lock:
+            was_unhealthy = self._status.startswith("I2C bus unhealthy")
+            self._status = "Hardware connected"
+            self._last_error = None
+        if was_unhealthy:
             logger.info("I2C bus recovered")
-        self._last_error = None
 
     def _recover_i2c(self):
         """Recreate the bus and ADS channels after repeated failed samples."""
-        if self._i2c is not None:
+        with self._lock:
+            i2c = self._i2c
+        if i2c is not None:
             try:
-                self._i2c.deinit()
+                i2c.deinit()
             except OSError:
                 pass
         try:
@@ -67,20 +98,107 @@ class HardwareController:
             import adafruit_ads1x15.ads1115 as ADS
             from adafruit_ads1x15.analog_in import AnalogIn
 
-            self._i2c = busio.I2C(board.SCL, board.SDA)
-            self._ads = ADS.ADS1115(self._i2c, address=cfg.ADS_ADDRESS)
-            self._ads.gain = cfg.ADS_GAIN
+            new_i2c = busio.I2C(board.SCL, board.SDA)
+            new_ads = ADS.ADS1115(new_i2c, address=cfg.ADS_ADDRESS)
+            new_ads.gain = cfg.ADS_GAIN
             channels = (ADS.P0, ADS.P1, ADS.P2, ADS.P3)
-            self._ads_channels = {
-                name: AnalogIn(self._ads, channels[channel])
+            new_channels = {
+                name: AnalogIn(new_ads, channels[channel])
                 for name, channel in cfg.ADS_KNOB_CHANNELS.items()
             }
-            self._i2c_failures = 0
+            with self._lock:
+                self._i2c = new_i2c
+                self._ads = new_ads
+                self._ads_channels = new_channels
+                self._i2c_failures = 0
             logger.info("I2C bus reopened")
         except (OSError, ImportError) as exc:
             logger.warning("I2C bus reopen failed: %s", exc)
         # Retry recovery only after another set of 10 failed samples.
-        self._i2c_failures = 0
+        with self._lock:
+            self._i2c_failures = 0
+
+    def _start_ads_worker(self):
+        with self._lock:
+            if not self._ads_channels or (self._worker and self._worker.is_alive()):
+                return
+            self._worker_stop.clear()
+            self._sampling_started_at = time.monotonic()
+            self._worker = threading.Thread(
+                target=self._sampling_loop, name="itlw-ads-sampler", daemon=True
+            )
+            worker = self._worker
+        worker.start()
+
+    def _sampling_loop(self):
+        backoff = 0.5
+        while not self._worker_stop.is_set():
+            succeeded = self._sample_once()
+            if self._worker_stop.is_set():
+                break
+            if succeeded:
+                backoff = 0.5
+                delay = cfg.ADS_SAMPLE_INTERVAL
+            else:
+                delay = backoff
+                backoff = min(5.0, backoff * 2)
+            if self._worker_stop.wait(delay):
+                break
+
+    def _sample_once(self):
+        """Sample and cache ADS channels once; intended to run on the worker."""
+        with self._lock:
+            channels = tuple(self._ads_channels.items())
+            last_values = self._last_values.copy()
+        if not channels:
+            return True
+
+        sampled = {}
+        cycle_failed = False
+        for name, channel in channels:
+            raw_voltage, succeeded = self._read_channel(name, channel)
+            if not succeeded:
+                cycle_failed = True
+                sampled[name] = last_values.get(name)
+                continue
+            voltage = max(0.0, min(cfg.ADS_REFERENCE_VOLTAGE, raw_voltage))
+            minimum, maximum, step = cfg.HARDWARE_KNOB_RANGES[name]
+            raw_value = minimum + voltage / cfg.ADS_REFERENCE_VOLTAGE * (maximum - minimum)
+            previous = last_values.get(name)
+            # Hysteresis is centred on the last accepted value, so a value
+            # holds only while the raw reading stays close to it.
+            if previous is not None and abs(raw_value - previous) <= step / 2 + cfg.ADS_DEADBAND[name]:
+                quantized = previous
+            else:
+                quantized = round((raw_value - minimum) / step) * step + minimum
+            # Snap the last bit of travel to the ends so the knob can always
+            # reach the minimum and the maximum.
+            if raw_value >= maximum - step / 2:
+                quantized = maximum
+            elif raw_value <= minimum + step / 2:
+                quantized = minimum
+            sampled[name] = max(minimum, min(maximum, quantized))
+            last_values[name] = sampled[name]
+
+        with self._lock:
+            for name, value in sampled.items():
+                self._last_values[name] = value
+                self._last[name] = value
+            if cycle_failed:
+                self._i2c_failures += 1
+                self._status = "I2C bus unhealthy"
+                recover = self._i2c_failures >= 10
+            else:
+                self._i2c_failures = 0
+                self._last_sample_at = time.monotonic()
+                self._last_good_sample_at = self._last_sample_at
+                recover = False
+        if cycle_failed:
+            if recover:
+                self._recover_i2c()
+            return False
+        self._mark_i2c_healthy()
+        return True
 
     def is_connected(self):
         return self.connected
@@ -125,6 +243,8 @@ class HardwareController:
                     logger.warning("ADS initialization failed; GPIO controls remain active: %s", exc)
             self.connected = True
             self.status = f"Hardware connected{adc_status}"
+            if self._ads_channels:
+                self._start_ads_worker()
             return True
         except Exception as exc:
             self.close()
@@ -133,62 +253,29 @@ class HardwareController:
             return False
 
     def read_inputs(self):
-        values = self._last.copy()
-        for name in self.BUTTON_NAMES:
-            values.setdefault(name, False)
-        if not self.connected:
-            return values
-        for name, button in getattr(self, "_gpio_buttons", {}).items():
-            try:
-                values[name] = button.is_pressed
-            except OSError as exc:
-                logger.warning("GPIO input read failed for %s: %s", name, exc)
-        now = time.monotonic()
-        if self._ads_channels and now - self._last_sample_at >= cfg.ADS_SAMPLE_INTERVAL:
-            sample_failed = False
-            for name, channel in self._ads_channels.items():
-                raw_voltage = self._read_channel(name, channel)
-                if raw_voltage is None:
-                    values[name] = self._last_values[name]
-                    sample_failed = True
-                    continue
-                voltage = max(0.0, min(cfg.ADS_REFERENCE_VOLTAGE, raw_voltage))
-                minimum, maximum, step = cfg.HARDWARE_KNOB_RANGES[name]
-                raw_value = minimum + voltage / cfg.ADS_REFERENCE_VOLTAGE * (maximum - minimum)
-                previous = self._last_values[name]
-                # Hysteresis is centred on the last accepted value, so a value
-                # holds only while the raw reading stays close to it.
-                if previous is not None and abs(raw_value - previous) <= step / 2 + cfg.ADS_DEADBAND[name]:
-                    quantized = previous
-                else:
-                    quantized = round((raw_value - minimum) / step) * step + minimum
-                # Snap the last bit of travel to the ends so the knob can always
-                # reach the minimum and the maximum.
-                if raw_value >= maximum - step / 2:
-                    quantized = maximum
-                elif raw_value <= minimum + step / 2:
-                    quantized = minimum
-                values[name] = max(minimum, min(maximum, quantized))
-            if sample_failed:
-                self._i2c_failures += 1
-                self.status = "I2C bus unhealthy"
-                if self._i2c_failures >= 10:
-                    self._recover_i2c()
-            else:
-                self._i2c_failures = 0
-                self._last_sample_at = now
+        button_values = {}
+        if self.connected:
+            for name, button in getattr(self, "_gpio_buttons", {}).items():
+                try:
+                    button_values[name] = button.is_pressed
+                except OSError as exc:
+                    logger.warning("GPIO input read failed for %s: %s", name, exc)
+        with self._lock:
+            values = self._last.copy()
+            values.update(button_values)
         for name in self.KNOB_NAMES:
             if values[name] is None:
-                values[name] = self._last_values[name]
-            else:
-                self._last_values[name] = values[name]
-        self._last = values.copy()
+                with self._lock:
+                    values[name] = self._last_values[name]
+        with self._lock:
+            self._last.update(button_values)
         return values
 
     def update(self):
         return self.read_inputs()
 
     def close(self):
+        self.stop()
         for button in getattr(self, "_gpio_buttons", {}).values():
             try:
                 button.close()
@@ -200,10 +287,17 @@ class HardwareController:
         if self._i2c is not None:
             try:
                 self._i2c.deinit()
-            except Exception:
+            except OSError:
                 pass
             self._i2c = None
         self.connected = False
+
+    def stop(self):
+        self._worker_stop.set()
+        worker = self._worker
+        if worker and worker.is_alive() and worker is not threading.current_thread():
+            worker.join()
+        self._worker = None
 
     def get_status(self):
         return self.status
