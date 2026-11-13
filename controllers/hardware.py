@@ -143,8 +143,6 @@ class HardwareController:
                 values[name] = button.is_pressed
             except OSError as exc:
                 logger.warning("GPIO input read failed for %s: %s", name, exc)
-            if name in ("btn_mode", "btn_reset") and values[name] != self._last.get(name, False):
-                if values[name]:
         now = time.monotonic()
         if self._ads_channels and now - self._last_sample_at >= cfg.ADS_SAMPLE_INTERVAL:
             sample_failed = False
