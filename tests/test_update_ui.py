@@ -55,9 +55,12 @@ class UpdateUITests(unittest.TestCase):
         self.assertTrue(self.ui.handle_hardware_button("btn_reset", update, "index"))
         self.assertFalse(self.ui.confirming)
         self.assertEqual(self.installs, [])
+        # MODE on the launch screen navigates to the workbench even when an
+        # update is available; only an explicitly opened prompt captures it.
+        self.assertFalse(self.ui.handle_hardware_button("btn_mode", update, "index"))
+        self.assertFalse(self.ui.confirming)
+        self.ui.confirming = True
         self.assertTrue(self.ui.handle_hardware_button("btn_mode", update, "index"))
-        self.assertTrue(self.ui.confirming)
-        self.ui.handle_hardware_button("btn_mode", update, "index")
         self.assertEqual(self.installs, [True])
 
     def test_banner_confirmation_and_fullscreen_updating_render(self):
