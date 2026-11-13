@@ -63,23 +63,18 @@ class UpdateUI:
         return False
 
     def _handle_confirmation(self, event, surface_size) -> bool:
-        rects = self.action_rects(surface_size)
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                self.confirming = False
+                self._choose(1)
             elif event.key in (pygame.K_TAB, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN):
                 self.selected_action = 1 - self.selected_action
             elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                 self._choose(self.selected_action)
             return True
-        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-            if rects["install"].collidepoint(event.pos):
-                self._choose(0)
-                return True
-            if rects["later"].collidepoint(event.pos):
-                self._choose(1)
-                return True
-        if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
+        # Keep the modal exclusive while it is open; only its keyboard
+        # controls can choose Install or Later.
+        if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                          pygame.MOUSEMOTION, pygame.MOUSEWHEEL):
             return True
         return False
 
@@ -91,16 +86,8 @@ class UpdateUI:
     def handle_hardware_button(self, button: str, snapshot, active_screen: str) -> bool:
         if self.mode != "manual":
             return False
-        if snapshot.state == "updating":
+        if snapshot.state == "updating" or self.confirming:
             return True
-        if self.confirming:
-            if button == "btn_mode":
-                self._choose(self.selected_action)
-                return True
-            if button == "btn_reset":
-                self.confirming = False
-                return True
-            return False
         return False
 
     def draw(self, surface, snapshot, active_screen="workbench") -> None:

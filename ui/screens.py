@@ -106,7 +106,7 @@ class IndexScreen:
         self._panel(surface,self.tutorial_rect); c=self.theme.colors
         self._text(surface,"02  DEMO TUTORIAL",(self.tutorial_rect.left+18,self.tutorial_rect.top+17),12,bold=True)
         self._text(surface,"TUTORIAL WIDGET / PLACEHOLDER",(self.tutorial_rect.left+18,self.tutorial_rect.top+42),10,c["text_subtle"],True)
-        for i,line in enumerate(("1. Set Vp, Np, and Ns.","2. Observe the calculated Vs.","3. Compare step-up and step-down modes.")):
+        for i,line in enumerate(("1. Set Vp, Np, and Ns.","2. Observe the calculated Vs.","3. Compare step-up and step-down modes.","Power: tap POWER or P / Esc; hold Vp +10 and -10.")):
             self._text(surface,line,(self.tutorial_rect.left+18,self.tutorial_rect.top+70+i*22),12,c["text_subtle"])
 
     def _draw_time_widget(self,surface,now):
@@ -469,6 +469,8 @@ class MainScreen:
         if getattr(self, "hardware_status", "") == "I2C bus unhealthy":
             self._text(surface, "I2C INPUT UNAVAILABLE - USING LAST READING",
                        (cfg.UI_WIDTH - 310, 34), 10, (170, 45, 35), True)
+        self._text(surface, "P / Esc · hold Vp +10 and -10",
+                   (480, 36), 9, cfg.COLOR_TEXT_SUBTLE)
         self._button(surface, self.btn_home, "Home")
 
     def _draw_model(self, surface, state, phase):
