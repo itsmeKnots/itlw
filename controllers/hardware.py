@@ -41,6 +41,13 @@ class HardwareController:
             return False
         try:
             from gpiozero import Button as GPIOButton
+            # Raspberry Pi OS Bookworm ships lgpio; select it explicitly so
+            # gpiozero does not fall back to the incompatible RPi.GPIO backend
+            # on Pi 5 (and so the backend is predictable on supported Pis).
+            from gpiozero.pins.lgpio import LGPIOFactory
+            from gpiozero import Device
+
+            Device.pin_factory = LGPIOFactory()
             self._gpio = GPIOButton
             self._gpio_buttons = {
                 name: GPIOButton(pin, pull_up=True, bounce_time=cfg.HARDWARE_DEBOUNCE_SECONDS)
@@ -81,6 +88,9 @@ class HardwareController:
             return values
         for name, button in getattr(self, "_gpio_buttons", {}).items():
             values[name] = button.is_pressed
+            if name in ("btn_mode", "btn_reset") and values[name] != self._last.get(name, False):
+                if values[name]:
+                    print(f"GPIO{cfg.HARDWARE_BUTTON_PINS[name]} pressed ({name})", flush=True)
         now = time.monotonic()
         if self._ads_channels and now - self._last_sample_at >= cfg.ADS_SAMPLE_INTERVAL:
             for name, channel in self._ads_channels.items():

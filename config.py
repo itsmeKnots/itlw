@@ -142,8 +142,8 @@ HARDWARE_BUTTON_PINS = {
     "ns_plus_10": 19,
     "ns_minus_10": 26,
     # Push buttons
-    "btn_mode": 20,
-    "btn_reset": 21,
+    "btn_mode": 20,  # MODE: BCM20 / physical pin 38
+    "btn_reset": 21,  # RESET: BCM21 / physical pin 40
 }
 TACTILE_ACTIONS = {
     "vp_plus_1": ("vp", 1),
