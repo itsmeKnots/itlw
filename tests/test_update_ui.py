@@ -49,19 +49,44 @@ class UpdateUITests(unittest.TestCase):
         )
         self.assertEqual(self.installs, [True])
 
-    def test_later_and_hardware_confirmation(self):
+    def test_escape_selects_later_and_closes_prompt(self):
         update = UpdateSnapshot("update_available")
         self.ui.confirming = True
-        self.assertTrue(self.ui.handle_hardware_button("btn_reset", update, "index"))
+        self.ui.selected_action = 0
+        self.assertTrue(self.ui.handle_event(
+            pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE),
+            update, self.surface.get_size(), "index",
+        ))
         self.assertFalse(self.ui.confirming)
         self.assertEqual(self.installs, [])
-        # MODE on the launch screen navigates to the workbench even when an
-        # update is available; only an explicitly opened prompt captures it.
-        self.assertFalse(self.ui.handle_hardware_button("btn_mode", update, "index"))
+        # Drawing after a screen transition does not reopen a dismissed prompt.
+        self.ui.draw(self.surface, update, "index")
+        workbench_surface = pygame.Surface((1240, 544))
+        self.ui.draw(workbench_surface, update, "workbench")
         self.assertFalse(self.ui.confirming)
+
+    def test_confirmation_is_keyboard_only_and_hardware_is_ignored(self):
+        update = UpdateSnapshot("update_available")
         self.ui.confirming = True
+
+        self.assertTrue(self.ui.handle_event(
+            pygame.event.Event(pygame.MOUSEBUTTONUP, button=1, pos=(700, 400)),
+            update, self.surface.get_size(), "index",
+        ))
+        self.assertTrue(self.ui.confirming)
+        self.assertEqual(self.installs, [])
+        self.assertTrue(self.ui.handle_hardware_button("btn_reset", update, "index"))
         self.assertTrue(self.ui.handle_hardware_button("btn_mode", update, "index"))
-        self.assertEqual(self.installs, [True])
+        self.assertTrue(self.ui.confirming)
+        self.assertEqual(self.installs, [])
+
+        self.ui.selected_action = 1
+        self.assertTrue(self.ui.handle_event(
+            pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN),
+            update, self.surface.get_size(), "index",
+        ))
+        self.assertFalse(self.ui.confirming)
+        self.assertEqual(self.installs, [])
 
     def test_banner_confirmation_and_fullscreen_updating_render(self):
         available = UpdateSnapshot("update_available", "abc1234", "def5678")
