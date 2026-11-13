@@ -101,12 +101,6 @@ class UpdateUI:
                 self.confirming = False
                 return True
             return False
-        # On the launch page, MODE opens the update confirmation when an
-        # update is available. In the workbench it retains its mode control.
-        if (active_screen == "index" and button == "btn_mode"
-                and snapshot.state == "update_available"):
-            self.confirming = True
-            return True
         return False
 
     def draw(self, surface, snapshot, active_screen="workbench") -> None:
