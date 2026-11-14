@@ -168,9 +168,9 @@ GPIO and ADS controls are attempted on every launch; keyboard and mouse remain a
    python main.py
    ```
 
-The app is designed for a 1280 × 720 desktop window and supports resizing down to 900 × 620. Press `Esc` or `P`, click the on-screen **Power** button, or use the physical hold gesture to open the power menu. Closing the window also opens that menu.
+The app is designed for a 1280 × 720 desktop window and supports resizing down to 900 × 620. Press Esc for power menu. On the Raspberry Pi, hold Vp +10 and Vp -10 to open power menu.
 
-The launch page includes live local-time and calendar widgets, plus placeholders for a project document and demo tutorial. Select **Open Workbench** or press `Enter` to launch the simulator. Press `Home` in the simulator to return to the launch page.
+The launch page includes live local-time and calendar widgets, plus placeholders for a project document and demo tutorial. Select **Open Workbench** or press `Enter` to launch the simulator. Press `H` in the simulator to return to the launch page.
 
 ## How to use it
 
@@ -189,17 +189,16 @@ Set the primary input voltage `Vp` in the Voltage card, choose an operation in t
 | `M` | Toggle Step-Up and Step-Down presets |
 | `R` | Reset to 12 V, Np = 100, Ns = 200 |
 | `A` | Toggle flux animation |
-| `H` | Show or hide the shortcut help panel |
-| `Esc` | Close help; otherwise open the power menu |
+| `H` | Return to the dashboard |
+| `Esc` | Open the power menu, or go back within it |
 | `P` | Open the power menu |
 
-Hover over a control for a short description. The header also keeps the `Press H for Help` legend visible.
+On-screen hints: **Press Esc for power menu** (keyboard); **Hold Vp +10 and Vp -10 to open power menu** (hardware).
 
 The power menu contains **Return to app**, **Restart app**, **Exit to desktop**,
 **Reboot**, and **Shut down**. Reboot and Shut down require a second confirmation
 and show a cancellable 10-second countdown. In the menu, use arrow keys to
-move, `Enter` to choose, and `Esc` to go back or return to the app. The visible
-Power button provides the touch and mouse route. **Exit to desktop** also asks
+move, `Enter` to choose, and `Esc` to go back or return to the app. **Exit to desktop** also asks
 for confirmation. **Restart app** is available when the program is running as
 `itlw.service`; Reboot and Shut down are available only on a Raspberry Pi with
 hardware controls enabled.
@@ -238,10 +237,9 @@ Edit `config.py` to adjust the window dimensions, minimum resize size, FPS, nume
 
 ## Physical controls (Raspberry Pi)
 
-Hardware input is attempted by default. Keyboard and mouse remain active at the same time. GPIO inputs use internal pull-ups; connect each button between its GPIO and Pi GND. The 12 tactile buttons map to Vp, Np, and Ns adjustments (`+1`, `-1`, `+10`, `-10` per value). MODE uses BCM GPIO 20 and RESET uses BCM GPIO 21. The tactile buttons repeat while held. Pin assignments are in `HARDWARE_BUTTON_PINS` and `TACTILE_ACTIONS` in `config.py`.
+Hardware input is attempted by default. Keyboard controls remain active at the same time. GPIO inputs use internal pull-ups; connect each button between its GPIO and Pi GND. The 12 tactile buttons map to Vp, Np, and Ns adjustments (`+1`, `-1`, `+10`, `-10` per value). MODE uses BCM GPIO 20 and RESET uses BCM GPIO 21. The tactile buttons repeat while held. Pin assignments are in `HARDWARE_BUTTON_PINS` and `TACTILE_ACTIONS` in `config.py`.
 
-To open the power menu from the physical controls, hold the Vp `+10` and `-10`
-buttons together for 2 seconds. Release both before using the menu. Vp `+1` and
+Hold Vp +10 and Vp -10 to open power menu. Hold both for 2 seconds, then release them before using the menu. Vp `+1` and
 `-1` move the selection; each MODE switch state change confirms, and each RESET
 switch state change goes back or cancels. While the menu is open, all other
 physical controls are ignored. The power menu is unavailable while the update
@@ -249,11 +247,17 @@ confirmation or update installation is active.
 
 | Button | BCM GPIO | Physical pin |
 |---|---:|---:|
-| Vp +1 / −1 / +10 / −10 | 4 / 17 / 27 / 22 | 7 / 11 / 13 / 15 |
-| Np +1 / −1 / +10 / −10 | 10 / 9 / 11 / 5 | 19 / 21 / 23 / 29 |
-| Ns +1 / −1 / +10 / −10 | 6 / 13 / 19 / 26 | 31 / 33 / 35 / 37 |
+| Vp +1 / −1 / +10 / −10 | 16 / 17 / 27 / 12 | 36 / 11 / 13 / 32 |
+| Np +1 / −1 / +10 / −10 | 18 / 9 / 8 / 7 | 12 / 21 / 24 / 26 |
+| Ns +1 / −1 / +10 / −10 | 15 / 0 / 19 / 1 | 10 / 27 / 35 / 28 |
 | MODE switch | 20 | 38 |
 | RESET switch | 21 | 40 |
+
+GPIO7 and GPIO8 are SPI chip-select pins; set `dtparam=spi=off` in
+`/boot/firmware/config.txt` to use them as buttons. GPIO15 is UART RX, so keep
+the serial console disabled. GPIO0 and GPIO1 are HAT ID pins with fixed
+hardware pull-ups; the app uses them as inputs, but their pull configuration
+cannot be changed. MODE and RESET remain on GPIO20 and GPIO21.
 
 Two B50k potentiometers control turns through an ADS1115 at I2C address `0x48`: A0 controls `Np` and A1 controls `Ns`. Connect ADS VDD to Pi 3.3 V, GND to Pi GND, SDA/SCL to physical pins 3 and 5, and each potentiometer's wiper to its assigned ADS input. Connect each potentiometer's outer legs to 3.3 V and GND. Keep the wiper voltage within 0–3.3 V. The Raspberry Pi installer enables I2C; reboot after installation to activate the bus.
 

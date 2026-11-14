@@ -9,6 +9,7 @@ from pathlib import Path
 import pygame
 
 import config as cfg
+from ui.header_layout import layout_header
 from core.transformer import calculate_output_voltage
 from ui.components import Button
 
@@ -39,7 +40,7 @@ class IndexScreen:
     def _layout(self, surface, state):
         width, height = surface.get_size()
         margin, gap, footer_height = 24, 16, 38
-        widget_top = margin
+        widget_top = cfg.UI_HEADER_HEIGHT + 8
         usable_width = width - margin * 2
         left_width = int(usable_width * 0.43)
         right_width = usable_width - left_width - gap
@@ -106,7 +107,7 @@ class IndexScreen:
         self._panel(surface,self.tutorial_rect); c=self.theme.colors
         self._text(surface,"02  DEMO TUTORIAL",(self.tutorial_rect.left+18,self.tutorial_rect.top+17),12,bold=True)
         self._text(surface,"TUTORIAL WIDGET / PLACEHOLDER",(self.tutorial_rect.left+18,self.tutorial_rect.top+42),10,c["text_subtle"],True)
-        for i,line in enumerate(("1. Set Vp, Np, and Ns.","2. Observe the calculated Vs.","3. Compare step-up and step-down modes.","Power: tap POWER or P / Esc; hold Vp +10 and -10.")):
+        for i,line in enumerate(("1. Set Vp, Np, and Ns.","2. Observe the calculated Vs.","3. Compare step-up and step-down modes.","Press Esc for power menu.","Hold Vp +10 and Vp -10 to open power menu.")):
             self._text(surface,line,(self.tutorial_rect.left+18,self.tutorial_rect.top+70+i*22),12,c["text_subtle"])
 
     def _draw_time_widget(self,surface,now):
@@ -123,13 +124,14 @@ class IndexScreen:
         data=calendar.Calendar(firstweekday=0).monthdayscalendar(now.year,now.month)
         left,top=self.calendar_rect.left+18,self.calendar_rect.top+70
         cell=(self.calendar_rect.width-36)/7
+        row_pitch=min(25,max(16,(self.calendar_rect.height-90)//max(1,len(data))))
         for i,day in enumerate(("MO","TU","WE","TH","FR","SA","SU")):
             image=self.theme.render_text(day,9,c["text_subtle"],True)
             surface.blit(image,image.get_rect(center=(left+cell*(i+.5),top)))
         for row,week in enumerate(data):
             for col,day in enumerate(week):
                 if not day: continue
-                center=(int(left+cell*(col+.5)),top+25+row*25)
+                center=(int(left+cell*(col+.5)),top+22+row*row_pitch)
                 color=c["text"]
                 if day==now.day:
                     marker=pygame.Rect(0,0,24,20); marker.center=center
@@ -186,7 +188,6 @@ class MainScreen:
         self.bar_h, self.knob_h, self.btn_h = cfg.UI_BAR_HEIGHT, cfg.UI_KNOB_HEIGHT, cfg.UI_BUTTON_HEIGHT
         self.col_h = self.bar_h * 2 + self.knob_h + self.btn_h + self.gap * 3
         self.top = cfg.UI_HEADER_HEIGHT + self.pad
-        self.btn_home = pygame.Rect(cfg.UI_WIDTH - self.pad - 110, 10, 110, 36)
         self.model_rect = pygame.Rect(self.pad, self.top, self.col_x - 12 - self.pad, self.col_h)
         y = self.top
         self.vp_rect = pygame.Rect(self.col_x, y, self.col_w, self.bar_h)
@@ -394,8 +395,6 @@ class MainScreen:
             self.pointer = event.pos
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
-            if self.btn_home.collidepoint(pos):
-                self._go_home(state); return
             if self.vp_minus.collidepoint(pos):
                 now = pygame.time.get_ticks(); self._adjust_vp_control(state, -1); self.hold = ("vp", -1, now, now); return
             if self.vp_plus.collidepoint(pos):
@@ -462,16 +461,10 @@ class MainScreen:
     def _draw_header(self, surface, state):
         h = cfg.UI_HEADER_HEIGHT
         pygame.draw.line(surface, cfg.COLOR_BORDER, (0, h - 1), (cfg.UI_WIDTH, h - 1))
-        self._text(surface, "INTERACTIVE TRANSFORMER LEARNING MACHINE",
-                   (self.pad, 9), 20, cfg.COLOR_TEXT, True)
-        self._text(surface, "Step-up / step-down demonstration  \u00b7  Vs = Vp \u00d7 (Ns / Np)",
-                   (self.pad, 34), 12, cfg.COLOR_TEXT_SUBTLE)
-        if getattr(self, "hardware_status", "") == "I2C bus unhealthy":
-            self._text(surface, "I2C INPUT UNAVAILABLE - USING LAST READING",
-                       (cfg.UI_WIDTH - 310, 34), 10, (170, 45, 35), True)
-        self._text(surface, "P / Esc · hold Vp +10 and -10",
-                   (480, 36), 9, cfg.COLOR_TEXT_SUBTLE)
-        self._button(surface, self.btn_home, "Home")
+        layout = layout_header(self.theme, surface.get_size(), "workbench",
+                               "Press Esc for power menu", "CHECK FOR UPDATES [U]", "v-------")
+        self._text(surface, layout.title.text, layout.title.rect.topleft,
+                   layout.title.font_size, cfg.COLOR_TEXT, True)
 
     def _draw_model(self, surface, state, phase):
         self.transformer_view.draw(surface, self.model_rect.x, self.model_rect.y,

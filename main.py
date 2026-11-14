@@ -12,8 +12,8 @@ from ui.transformer_view import TransformerView
 from ui.screens import AppState, IndexScreen, MainScreen
 from ui.update_ui import UpdateUI
 from ui.power_menu import (
-    PowerMenu, draw_power_button, draw_power_menu, handle_power_menu_pointer,
-    power_button_rect,
+    PowerMenu, draw_power_menu, handle_power_menu_event,
+    handle_power_menu_hardware, opens_power_menu_from_key, power_gesture_held,
 )
 from controllers.hardware import get_hardware_controller
 from update_check import UpdateManager
@@ -96,7 +96,6 @@ def main():
 
     power_menu = PowerMenu()
     power_actions = PowerActions(logger=logger)
-    power_button_pressed = False
     requested_action = None
     combo_started_at = None
     combo_latched = False
@@ -125,21 +124,13 @@ def main():
             power_menu_opened_this_frame = True
         return power_menu.is_open
 
-    def activate_power_menu():
+    def handle_power_key(key):
         nonlocal requested_action
-        action = power_menu.activate()
+        action = handle_power_menu_event(
+            power_menu, pygame.event.Event(pygame.KEYDOWN, key=key)
+        )
         if action and action != "return_to_app":
             requested_action = action
-
-    def handle_power_key(key):
-        if key in (pygame.K_UP, pygame.K_LEFT):
-            power_menu.move_selection(-1)
-        elif key in (pygame.K_DOWN, pygame.K_RIGHT):
-            power_menu.move_selection(1)
-        elif key in (pygame.K_RETURN, pygame.K_SPACE):
-            activate_power_menu()
-        elif key == pygame.K_ESCAPE:
-            power_menu.cancel()
 
     while running:
         if termination_requested["value"]:
@@ -154,7 +145,6 @@ def main():
             update_ui.show_notice(update_notice)
 
         for event in pygame.event.get():
-            raw_event = event
             update_snapshot = update_manager.snapshot
             if update_snapshot.state == "updating" or update_ui.confirming:
                 event, surface_size = scale_pointer_event(
@@ -166,16 +156,10 @@ def main():
             if power_menu.is_open:
                 if event.type == pygame.KEYDOWN:
                     handle_power_key(event.key)
-                elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                    _consumed, action = handle_power_menu_pointer(
-                        power_menu, event.pos, screen.get_size()
-                    )
-                    if action and action != "return_to_app":
-                        requested_action = action
                 continue
 
             if event.type == pygame.QUIT:
-                open_power_menu(update_snapshot)
+                # The menu is intentionally keyboard and hardware controlled.
                 continue
             elif event.type == pygame.VIDEORESIZE:
                 if getattr(cfg, "RESIZABLE", True):
@@ -186,9 +170,10 @@ def main():
                     if state.help_visible:
                         state.help_visible = False
                         continue
-                    open_power_menu(update_snapshot)
-                    continue
-                elif event.key == pygame.K_p:
+                    if opens_power_menu_from_key(event.key):
+                        open_power_menu(update_snapshot)
+                        continue
+                elif opens_power_menu_from_key(event.key):
                     open_power_menu(update_snapshot)
                     continue
                 elif state.active_screen == "workbench" and event.key == pygame.K_r:
@@ -198,19 +183,6 @@ def main():
                 elif state.active_screen == "workbench" and event.key == pygame.K_a:
                     state.animation_enabled = not state.animation_enabled
 
-            active_name = state.active_screen
-            power_rect = power_button_rect(screen.get_size(), active_name)
-            if raw_event.type == pygame.MOUSEBUTTONDOWN and raw_event.button == 1:
-                if power_rect.collidepoint(raw_event.pos):
-                    power_button_pressed = True
-                    continue
-            elif raw_event.type == pygame.MOUSEBUTTONUP and raw_event.button == 1:
-                was_power_pressed = power_button_pressed
-                power_button_pressed = False
-                if was_power_pressed:
-                    if power_rect.collidepoint(raw_event.pos):
-                        open_power_menu(update_snapshot)
-                    continue
             try:
                 on_workbench = state.active_screen == "workbench"
                 active_screen = main_screen if on_workbench else index_screen
@@ -247,7 +219,7 @@ def main():
                 if combo_started_at is None and not combo_latched:
                     combo_started_at = pygame.time.get_ticks()
                 if (combo_started_at is not None and not combo_latched
-                        and pygame.time.get_ticks() - combo_started_at >= 2000):
+                        and power_gesture_held(physical, pygame.time.get_ticks() - combo_started_at)):
                     if open_power_menu(update_snapshot):
                         combo_latched = True
                         power_menu_wait_for_release = True
@@ -275,17 +247,19 @@ def main():
                     power_menu_wait_for_release = False
             else:
                 if pressed("vp_plus_1"):
-                    power_menu.move_selection(-1)
+                    handle_power_menu_hardware(power_menu, "vp_plus_1")
                 elif pressed("vp_minus_1"):
-                    power_menu.move_selection(1)
+                    handle_power_menu_hardware(power_menu, "vp_minus_1")
                 reset_changed = (physical.get("btn_reset", False)
                                  != menu_button_baseline["btn_reset"])
                 mode_changed = (physical.get("btn_mode", False)
                                 != menu_button_baseline["btn_mode"])
                 if reset_changed:
-                    power_menu.cancel()
+                    handle_power_menu_hardware(power_menu, "btn_reset")
                 elif mode_changed:
-                    activate_power_menu()
+                    action = handle_power_menu_hardware(power_menu, "btn_mode")
+                    if action and action != "return_to_app":
+                        requested_action = action
                 menu_button_baseline = {
                     "btn_mode": physical.get("btn_mode", False),
                     "btn_reset": physical.get("btn_reset", False),
@@ -352,8 +326,6 @@ def main():
         if not update_blocked:
             if power_menu.is_open:
                 draw_power_menu(screen, theme, power_menu)
-            else:
-                draw_power_button(screen, theme, state.active_screen)
         pygame.display.flip()
         if requested_action or termination_requested["value"]:
             running = False

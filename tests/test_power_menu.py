@@ -2,8 +2,8 @@
 import unittest
 
 from ui.power_menu import (
-    PowerMenu, countdown_message, handle_power_menu_pointer, power_button_rect,
-    power_menu_layout,
+    PowerMenu, countdown_message, handle_power_menu_key, handle_power_menu_event,
+    handle_power_menu_hardware, opens_power_menu_from_key, power_gesture_held,
 )
 
 
@@ -120,26 +120,42 @@ class PowerMenuTests(unittest.TestCase):
         self.assertIsNone(menu.tick(-5))
         self.assertEqual(menu.remaining, 2)
 
-    def test_pointer_targets_meet_minimum_touch_size_and_confirm_exit(self):
-        size = (900, 620)
+    def test_keyboard_routes_open_navigate_confirm_and_cancel(self):
+        import pygame
+        self.assertTrue(opens_power_menu_from_key(pygame.K_ESCAPE))
+        self.assertTrue(opens_power_menu_from_key(pygame.K_p))
         menu = PowerMenu()
         menu.open()
-        power_button = power_button_rect(size, "index")
-        self.assertGreaterEqual(power_button.width, 48)
-        self.assertGreaterEqual(power_button.height, 48)
-        _panel, rows = power_menu_layout(size, menu)
-        self.assertTrue(all(row.width >= 48 and row.height >= 48 for row in rows))
-
-        exit_row = rows[2]
-        consumed, action = handle_power_menu_pointer(menu, exit_row.center, size)
-        self.assertTrue(consumed)
-        self.assertIsNone(action)
+        handle_power_menu_key(menu, pygame.K_DOWN)
+        self.assertEqual(menu.selected_action, "restart_app")
+        handle_power_menu_key(menu, pygame.K_RETURN)
         self.assertEqual(menu.state, PowerMenu.CONFIRM)
-        _panel, controls = power_menu_layout(size, menu)
-        _consumed, action = handle_power_menu_pointer(
-            menu, controls["confirm"].center, size
-        )
-        self.assertEqual(action, "exit_to_desktop")
+        self.assertEqual(handle_power_menu_key(menu, pygame.K_RETURN), "restart_app")
+
+    def test_mouse_events_do_not_act_on_power_menu(self):
+        import pygame
+        menu = PowerMenu()
+        menu.open()
+        initial_selection = menu.selection
+        for event_type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                           pygame.MOUSEMOTION, pygame.MOUSEWHEEL):
+            event = pygame.event.Event(event_type, pos=(450, 300), button=1, y=1)
+            self.assertIsNone(handle_power_menu_event(menu, event))
+        self.assertEqual(menu.state, PowerMenu.MENU)
+        self.assertEqual(menu.selection, initial_selection)
+
+    def test_hardware_routes_open_navigate_confirm_and_cancel(self):
+        self.assertFalse(power_gesture_held({"vp_plus_10": True, "vp_minus_10": True}, 1999))
+        self.assertTrue(power_gesture_held({"vp_plus_10": True, "vp_minus_10": True}, 2000))
+        self.assertFalse(power_gesture_held({"vp_plus_10": True}, 2500))
+        menu = PowerMenu()
+        menu.open()
+        handle_power_menu_hardware(menu, "vp_minus_1")
+        self.assertEqual(menu.selected_action, "restart_app")
+        handle_power_menu_hardware(menu, "btn_mode")
+        self.assertEqual(menu.state, PowerMenu.CONFIRM)
+        handle_power_menu_hardware(menu, "btn_reset")
+        self.assertEqual(menu.state, PowerMenu.MENU)
 
 
 if __name__ == "__main__":
