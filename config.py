@@ -127,24 +127,29 @@ CONTROL_METHOD = "Keyboard/Mouse"
 HARDWARE_ENABLED = os.getenv("ITLW_HARDWARE", "1") != "0"
 HARDWARE_BUTTON_PINS = {
     # Vp tactile group
-    "vp_plus_1": 4,
+    "vp_plus_1": 16,  # BCM16 / physical pin 36 (was BCM4 / pin 7)
     "vp_minus_1": 17,
     "vp_plus_10": 27,
-    "vp_minus_10": 22,
+    "vp_minus_10": 12,  # BCM12 / physical pin 32 (was BCM22 / pin 15)
     # Np tactile group
-    "np_plus_1": 10,
+    "np_plus_1": 18,  # BCM18 / physical pin 12 (was BCM10 / pin 19)
     "np_minus_1": 9,
-    "np_plus_10": 11,
-    "np_minus_10": 5,
+    "np_plus_10": 8,  # BCM8 / physical pin 24 (was BCM11 / pin 23)
+    "np_minus_10": 7,  # BCM7 / physical pin 26 (was BCM5 / pin 29)
     # Ns tactile group
-    "ns_plus_1": 6,
-    "ns_minus_1": 13,
+    "ns_plus_1": 15,  # BCM15 / physical pin 10 (was BCM6 / pin 31)
+    "ns_minus_1": 0,  # BCM0 / physical pin 27 (was BCM13 / pin 33)
     "ns_plus_10": 19,
-    "ns_minus_10": 26,
+    "ns_minus_10": 1,  # BCM1 / physical pin 28 (was BCM26 / pin 37)
     # Push buttons
     "btn_mode": 20,  # MODE: BCM20 / physical pin 38
     "btn_reset": 21,  # RESET: BCM21 / physical pin 40
 }
+# GPIO7 and GPIO8 are SPI chip-select pins; keep SPI disabled
+# (dtparam=spi=off in /boot/firmware/config.txt) to use them as buttons.
+# GPIO15 is UART RX; the serial console must remain disabled.
+# GPIO0/1 are HAT ID pins with fixed hardware pull-ups. These are button
+# inputs configured with pull_up=True; software cannot change their pulls.
 TACTILE_ACTIONS = {
     "vp_plus_1": ("vp", 1),
     "vp_minus_1": ("vp", -1),

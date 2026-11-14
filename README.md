@@ -247,11 +247,17 @@ confirmation or update installation is active.
 
 | Button | BCM GPIO | Physical pin |
 |---|---:|---:|
-| Vp +1 / −1 / +10 / −10 | 4 / 17 / 27 / 22 | 7 / 11 / 13 / 15 |
-| Np +1 / −1 / +10 / −10 | 10 / 9 / 11 / 5 | 19 / 21 / 23 / 29 |
-| Ns +1 / −1 / +10 / −10 | 6 / 13 / 19 / 26 | 31 / 33 / 35 / 37 |
+| Vp +1 / −1 / +10 / −10 | 16 / 17 / 27 / 12 | 36 / 11 / 13 / 32 |
+| Np +1 / −1 / +10 / −10 | 18 / 9 / 8 / 7 | 12 / 21 / 24 / 26 |
+| Ns +1 / −1 / +10 / −10 | 15 / 0 / 19 / 1 | 10 / 27 / 35 / 28 |
 | MODE switch | 20 | 38 |
 | RESET switch | 21 | 40 |
+
+GPIO7 and GPIO8 are SPI chip-select pins; set `dtparam=spi=off` in
+`/boot/firmware/config.txt` to use them as buttons. GPIO15 is UART RX, so keep
+the serial console disabled. GPIO0 and GPIO1 are HAT ID pins with fixed
+hardware pull-ups; the app uses them as inputs, but their pull configuration
+cannot be changed. MODE and RESET remain on GPIO20 and GPIO21.
 
 Two B50k potentiometers control turns through an ADS1115 at I2C address `0x48`: A0 controls `Np` and A1 controls `Ns`. Connect ADS VDD to Pi 3.3 V, GND to Pi GND, SDA/SCL to physical pins 3 and 5, and each potentiometer's wiper to its assigned ADS input. Connect each potentiometer's outer legs to 3.3 V and GND. Keep the wiper voltage within 0–3.3 V. The Raspberry Pi installer enables I2C; reboot after installation to activate the bus.
 
